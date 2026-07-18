@@ -4,53 +4,23 @@ from sqlalchemy.orm import Session
 from app.models.user import User
 from app.auth.password import hash_password, verify_password
 from app.auth.jwt import create_access_token
-from app.utils.id_generator import generate_employee_id
+from app.utils.id_generator import generate_code
 
-def check_mobile_exists(
+
+def create_user(
     db: Session,
-    mobile: str
-):
-
-    user = (
-        db.query(User)
-        .filter(User.mobile == mobile)
-        .first()
-    )
-
-    if user:
-        raise HTTPException(
-            status_code=400,
-            detail="Mobile number already registered"
-        )
-
-
-def check_email_exists(
-    db: Session,
-    email: str
-):
-
-    if not email:
-        return
-
-    user = (
-        db.query(User)
-        .filter(User.email == email)
-        .first()
-    )
-
-    if user:
-        raise HTTPException(
-            status_code=400,
-            detail="Email already registered"
-        )
-
-
-def build_user(
-    employee_id: str,
     user_data
 ):
 
-    return User(
+    count = db.query(User).count()
+
+    employee_id = generate_code(
+        "EMP",
+        count + 1
+    )
+
+
+    new_user = User(
 
         employee_id=employee_id,
 
@@ -65,53 +35,20 @@ def build_user(
         ),
 
         role=user_data.role
+
     )
 
 
-def save_user(
-    db: Session,
-    user: User
-):
-
-    db.add(user)
+    db.add(new_user)
 
     db.commit()
 
-    db.refresh(user)
+    db.refresh(new_user)
 
-    return user
+    return new_user
 
 
-def create_user(
-    db: Session,
-    user_data
-):
 
-    check_mobile_exists(
-        db,
-        user_data.mobile
-    )
-
-    check_email_exists(
-        db,
-        user_data.email
-    )
-
-    count = db.query(User).count()
-
-    employee_id = generate_employee_id(
-        count + 1
-    )
-
-    user = build_user(
-        employee_id,
-        user_data
-    )
-
-    return save_user(
-        db,
-        user
-    )
 def login_user(
     db: Session,
     mobile: str,
@@ -126,6 +63,7 @@ def login_user(
 
 
     if not user:
+
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid mobile number or password"
@@ -136,6 +74,7 @@ def login_user(
         password,
         user.password_hash
     ):
+
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid mobile number or password"
@@ -143,9 +82,13 @@ def login_user(
 
 
     token_data = {
+
         "user_id": user.id,
-        "mobile": user.mobile,
+
+        "sub": user.mobile,
+
         "role": user.role
+
     }
 
 
@@ -155,6 +98,9 @@ def login_user(
 
 
     return {
+
         "access_token": access_token,
+
         "token_type": "bearer"
+
     }

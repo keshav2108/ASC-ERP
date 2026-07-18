@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 
 from app.routes.auth import router as auth_router
+from app.routes.customer import router as customer_router
+from app.routes.customer_product import router as customer_product_router
 
 
 app = FastAPI(
@@ -9,7 +11,24 @@ app = FastAPI(
 )
 
 
-app.include_router(auth_router)
+
+# Authentication APIs
+app.include_router(
+    auth_router
+)
+
+
+# Customer APIs
+app.include_router(
+    customer_router
+)
+
+
+# Customer Product APIs
+app.include_router(
+    customer_product_router
+)
+
 
 
 @app.get("/")

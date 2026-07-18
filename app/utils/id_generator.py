@@ -1,12 +1,16 @@
+from app.utils.timezone import IST
 from datetime import datetime
 
 
-def generate_employee_id(sequence: int):
+def generate_code(
+    prefix: str,
+    sequence: int
+):
 
-    today = datetime.now()
+    today = datetime.now(IST)
 
     return (
-        f"EMP"
+        f"{prefix}"
         f"{today.strftime('%Y%m%d')}"
         f"{sequence:03d}"
     )
