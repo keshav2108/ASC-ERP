@@ -1,10 +1,10 @@
-from fastapi import HTTPException
+from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.models.user import User
-from app.auth.password import hash_password
+from app.auth.password import hash_password, verify_password
+from app.auth.jwt import create_access_token
 from app.utils.id_generator import generate_employee_id
-
 
 def check_mobile_exists(
     db: Session,
@@ -112,3 +112,49 @@ def create_user(
         db,
         user
     )
+def login_user(
+    db: Session,
+    mobile: str,
+    password: str
+):
+
+    user = (
+        db.query(User)
+        .filter(User.mobile == mobile)
+        .first()
+    )
+
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid mobile number or password"
+        )
+
+
+    if not verify_password(
+        password,
+        user.password_hash
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid mobile number or password"
+        )
+
+
+    token_data = {
+        "user_id": user.id,
+        "mobile": user.mobile,
+        "role": user.role
+    }
+
+
+    access_token = create_access_token(
+        token_data
+    )
+
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer"
+    }
