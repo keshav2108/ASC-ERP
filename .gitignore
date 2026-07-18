@@ -1,6 +1,15 @@
-venv/
+# Python
+backend/venv/
 __pycache__/
 *.pyc
+
+# Environment
 .env
-.idea/
+
+# IDE
 .vscode/
+.idea/
+
+# Flutter later
+frontend/.dart_tool/
+frontend/build/
