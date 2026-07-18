@@ -5,6 +5,7 @@ from app.routes.customer import router as customer_router
 from app.routes.customer_product import router as customer_product_router
 from app.routes.service_request import router as service_request_router
 from app.routes.master_option import router as master_option_router
+from app.routes.technician import router as technician_router
 
 
 app = FastAPI(
@@ -21,6 +22,7 @@ app.include_router(customer_router)
 app.include_router(customer_product_router)
 app.include_router(service_request_router)
 app.include_router(master_option_router)
+app.include_router(technician_router)
 
 
 @app.get("/")
