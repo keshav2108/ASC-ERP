@@ -1,9 +1,8 @@
-from app.utils.timezone import get_current_time
-
-from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy import Column, DateTime, Integer, String
 from sqlalchemy.orm import relationship
 
 from app.database import Base
+from app.utils.timezone import get_current_time
 
 
 class Customer(Base):
@@ -67,10 +66,10 @@ class Customer(Base):
         nullable=True
     )
 
+
     status = Column(
         String(20),
         default="ACTIVE"
-    
     )
 
 
@@ -79,11 +78,13 @@ class Customer(Base):
         default=get_current_time
     )
 
+
     products = relationship(
         "CustomerProduct",
         back_populates="customer",
         cascade="all, delete-orphan"
     )
+
 
     service_requests = relationship(
         "ServiceRequest",
