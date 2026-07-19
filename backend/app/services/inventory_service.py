@@ -64,11 +64,16 @@ def stock_in(
 
     spare_part.current_stock += stock_data.quantity
 
+    unit_price = spare_part.purchase_price
+    line_total = unit_price * stock_data.quantity
+
     transaction = StockTransaction(
         spare_part_id=stock_data.spare_part_id,
         job_card_id=None,
         transaction_type="STOCK_IN",
         quantity=stock_data.quantity,
+        unit_price=unit_price,
+        line_total=line_total,
         reference=stock_data.reference,
         remarks=stock_data.remarks,
     )
@@ -124,11 +129,16 @@ def issue_stock_to_job_card(
 
     spare_part.current_stock -= issue_data.quantity
 
+    unit_price = spare_part.selling_price
+    line_total = unit_price * issue_data.quantity
+
     transaction = StockTransaction(
         spare_part_id=issue_data.spare_part_id,
         job_card_id=issue_data.job_card_id,
         transaction_type="ISSUE",
         quantity=issue_data.quantity,
+        unit_price=unit_price,
+        line_total=line_total,
         reference=job_card.job_code,
         remarks=issue_data.remarks,
     )
@@ -160,41 +170,51 @@ def return_stock_from_job_card(
         return_data.job_card_id,
     )
 
+    issue_transactions = (
+        db.query(StockTransaction)
+        .filter(
+            StockTransaction.spare_part_id
+            == return_data.spare_part_id,
+            StockTransaction.job_card_id
+            == return_data.job_card_id,
+            StockTransaction.transaction_type
+            == "ISSUE",
+        )
+        .all()
+    )
+
+    return_transactions = (
+        db.query(StockTransaction)
+        .filter(
+            StockTransaction.spare_part_id
+            == return_data.spare_part_id,
+            StockTransaction.job_card_id
+            == return_data.job_card_id,
+            StockTransaction.transaction_type
+            == "RETURN",
+        )
+        .all()
+    )
+
     total_issued = sum(
         transaction.quantity
-        for transaction in (
-            db.query(StockTransaction)
-            .filter(
-                StockTransaction.spare_part_id
-                == return_data.spare_part_id,
-                StockTransaction.job_card_id
-                == return_data.job_card_id,
-                StockTransaction.transaction_type
-                == "ISSUE",
-            )
-            .all()
-        )
+        for transaction in issue_transactions
     )
 
     total_returned = sum(
         transaction.quantity
-        for transaction in (
-            db.query(StockTransaction)
-            .filter(
-                StockTransaction.spare_part_id
-                == return_data.spare_part_id,
-                StockTransaction.job_card_id
-                == return_data.job_card_id,
-                StockTransaction.transaction_type
-                == "RETURN",
-            )
-            .all()
-        )
+        for transaction in return_transactions
     )
 
     returnable_quantity = (
         total_issued - total_returned
     )
+
+    if returnable_quantity <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No issued stock is available to return",
+        )
 
     if return_data.quantity > returnable_quantity:
         raise HTTPException(
@@ -205,6 +225,30 @@ def return_stock_from_job_card(
             ),
         )
 
+    latest_issue = (
+        db.query(StockTransaction)
+        .filter(
+            StockTransaction.spare_part_id
+            == return_data.spare_part_id,
+            StockTransaction.job_card_id
+            == return_data.job_card_id,
+            StockTransaction.transaction_type
+            == "ISSUE",
+        )
+        .order_by(
+            StockTransaction.id.desc()
+        )
+        .first()
+    )
+
+    unit_price = (
+        latest_issue.unit_price
+        if latest_issue
+        else spare_part.selling_price
+    )
+
+    line_total = unit_price * return_data.quantity
+
     spare_part.current_stock += return_data.quantity
 
     transaction = StockTransaction(
@@ -212,6 +256,8 @@ def return_stock_from_job_card(
         job_card_id=return_data.job_card_id,
         transaction_type="RETURN",
         quantity=return_data.quantity,
+        unit_price=unit_price,
+        line_total=line_total,
         reference=job_card.job_code,
         remarks=return_data.remarks,
     )
@@ -240,6 +286,7 @@ def adjust_stock(
 
     old_quantity = spare_part.current_stock
     new_quantity = adjustment_data.new_quantity
+    difference = new_quantity - old_quantity
 
     spare_part.current_stock = new_quantity
 
@@ -247,7 +294,9 @@ def adjust_stock(
         spare_part_id=adjustment_data.spare_part_id,
         job_card_id=None,
         transaction_type="ADJUSTMENT",
-        quantity=new_quantity - old_quantity,
+        quantity=difference,
+        unit_price=spare_part.purchase_price,
+        line_total=0,
         reference=None,
         remarks=adjustment_data.remarks,
     )

@@ -1,20 +1,17 @@
 from sqlalchemy import (
     Column,
-    DateTime,
     ForeignKey,
     Integer,
     Numeric,
     String,
-    Text,
 )
 from sqlalchemy.orm import relationship
 
 from app.database import Base
-from app.utils.timezone import get_current_time
 
 
-class StockTransaction(Base):
-    __tablename__ = "stock_transactions"
+class InvoiceItem(Base):
+    __tablename__ = "invoice_items"
 
     id = Column(
         Integer,
@@ -22,28 +19,34 @@ class StockTransaction(Base):
         index=True,
     )
 
-    spare_part_id = Column(
+    invoice_id = Column(
         Integer,
-        ForeignKey("spare_parts.id"),
+        ForeignKey("invoices.id"),
         nullable=False,
         index=True,
     )
 
-    job_card_id = Column(
+    spare_part_id = Column(
         Integer,
-        ForeignKey("job_cards.id"),
+        ForeignKey("spare_parts.id"),
         nullable=True,
         index=True,
     )
 
-    transaction_type = Column(
+    item_type = Column(
         String(30),
+        nullable=False,
+    )
+
+    description = Column(
+        String(255),
         nullable=False,
     )
 
     quantity = Column(
         Integer,
         nullable=False,
+        default=1,
     )
 
     unit_price = Column(
@@ -52,32 +55,17 @@ class StockTransaction(Base):
         default=0,
     )
 
-    line_total = Column(
+    total_price = Column(
         Numeric(12, 2),
         nullable=False,
         default=0,
     )
 
-    reference = Column(
-        String(100),
-        nullable=True,
-    )
-
-    remarks = Column(
-        Text,
-        nullable=True,
-    )
-
-    created_at = Column(
-        DateTime,
-        nullable=False,
-        default=get_current_time,
+    invoice = relationship(
+        "Invoice",
+        back_populates="items",
     )
 
     spare_part = relationship(
         "SparePart",
-    )
-
-    job_card = relationship(
-        "JobCard",
     )

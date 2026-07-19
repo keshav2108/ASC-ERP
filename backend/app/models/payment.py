@@ -5,7 +5,6 @@ from sqlalchemy import (
     Integer,
     Numeric,
     String,
-    Text,
 )
 from sqlalchemy.orm import relationship
 
@@ -13,8 +12,8 @@ from app.database import Base
 from app.utils.timezone import get_current_time
 
 
-class StockTransaction(Base):
-    __tablename__ = "stock_transactions"
+class Payment(Base):
+    __tablename__ = "payments"
 
     id = Column(
         Integer,
@@ -22,50 +21,50 @@ class StockTransaction(Base):
         index=True,
     )
 
-    spare_part_id = Column(
-        Integer,
-        ForeignKey("spare_parts.id"),
+    payment_code = Column(
+        String(25),
+        unique=True,
         nullable=False,
         index=True,
     )
 
-    job_card_id = Column(
+    invoice_id = Column(
         Integer,
-        ForeignKey("job_cards.id"),
-        nullable=True,
+        ForeignKey("invoices.id"),
+        nullable=False,
         index=True,
     )
 
-    transaction_type = Column(
+    amount = Column(
+        Numeric(12, 2),
+        nullable=False,
+    )
+
+    payment_method = Column(
         String(30),
         nullable=False,
     )
 
-    quantity = Column(
-        Integer,
-        nullable=False,
-    )
-
-    unit_price = Column(
-        Numeric(12, 2),
-        nullable=False,
-        default=0,
-    )
-
-    line_total = Column(
-        Numeric(12, 2),
-        nullable=False,
-        default=0,
-    )
-
-    reference = Column(
+    transaction_reference = Column(
         String(100),
         nullable=True,
     )
 
     remarks = Column(
-        Text,
+        String(500),
         nullable=True,
+    )
+
+    status = Column(
+        String(30),
+        nullable=False,
+        default="SUCCESS",
+    )
+
+    paid_at = Column(
+        DateTime,
+        nullable=False,
+        default=get_current_time,
     )
 
     created_at = Column(
@@ -74,10 +73,7 @@ class StockTransaction(Base):
         default=get_current_time,
     )
 
-    spare_part = relationship(
-        "SparePart",
-    )
-
-    job_card = relationship(
-        "JobCard",
+    invoice = relationship(
+        "Invoice",
+        back_populates="payments",
     )

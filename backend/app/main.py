@@ -6,6 +6,7 @@ from app.routes.customer_product import (
     router as customer_product_router,
 )
 from app.routes.inventory import router as inventory_router
+from app.routes.invoice import router as invoice_router
 from app.routes.job_card import router as job_card_router
 from app.routes.master_option import (
     router as master_option_router,
@@ -18,6 +19,7 @@ from app.routes.technician import router as technician_router
 from app.routes.workflow_transition import (
     router as workflow_transition_router,
 )
+from app.routes.payment import router as payment_router
 
 
 app = FastAPI(
@@ -39,6 +41,8 @@ app.include_router(job_card_router)
 app.include_router(workflow_transition_router)
 app.include_router(spare_part_router)
 app.include_router(inventory_router)
+app.include_router(invoice_router)
+app.include_router(payment_router)
 
 
 @app.get("/")

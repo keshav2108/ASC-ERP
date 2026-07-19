@@ -97,3 +97,10 @@ class JobCard(Base):
         "Technician",
         back_populates="job_cards",
     )
+
+    invoice = relationship(
+        "Invoice",
+        back_populates="job_card",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )

@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 
 from pydantic import BaseModel, Field
 
@@ -64,6 +65,8 @@ class StockTransactionResponse(BaseModel):
     job_card_id: int | None
     transaction_type: str
     quantity: int
+    unit_price: Decimal
+    line_total: Decimal
     reference: str | None
     remarks: str | None
     created_at: datetime
