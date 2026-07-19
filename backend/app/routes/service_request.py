@@ -17,6 +17,15 @@ from app.services.service_request_service import (
     update_service_request,
 )
 
+from app.schemas.job_card import (
+    JobCardResponse,
+    TechnicianAssignmentCreate,
+)
+
+from app.services.job_card_service import (
+    assign_technician_and_create_job_card,
+)
+
 
 router = APIRouter(
     prefix="/api/v1/service-requests",
@@ -117,4 +126,20 @@ def cancel_request(
     return cancel_service_request(
         db,
         service_request_id,
+    )
+
+@router.post(
+    "/{service_request_id}/assign-technician",
+    response_model=JobCardResponse,
+    status_code=201,
+)
+def assign_technician(
+    service_request_id: int,
+    assignment_data: TechnicianAssignmentCreate,
+    db: Session = Depends(get_db),
+):
+    return assign_technician_and_create_job_card(
+        db,
+        service_request_id,
+        assignment_data,
     )

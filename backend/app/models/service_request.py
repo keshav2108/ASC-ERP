@@ -104,3 +104,10 @@ class ServiceRequest(Base):
         "CustomerProduct",
         back_populates="service_requests"
     )
+
+    job_card = relationship(
+        "JobCard",
+        back_populates="service_request",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )

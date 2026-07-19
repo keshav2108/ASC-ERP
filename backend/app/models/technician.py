@@ -75,3 +75,8 @@ class Technician(Base):
     )
 
     user = relationship("User")
+
+    job_cards = relationship(
+        "JobCard",
+        back_populates="technician",
+    )
