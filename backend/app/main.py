@@ -20,6 +20,7 @@ from app.routes.workflow_transition import (
     router as workflow_transition_router,
 )
 from app.routes.payment import router as payment_router
+from app.routes.delivery import router as delivery_router
 
 
 app = FastAPI(
@@ -43,6 +44,7 @@ app.include_router(spare_part_router)
 app.include_router(inventory_router)
 app.include_router(invoice_router)
 app.include_router(payment_router)
+app.include_router(delivery_router)
 
 
 @app.get("/")

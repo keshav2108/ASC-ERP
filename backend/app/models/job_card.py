@@ -82,6 +82,21 @@ class JobCard(Base):
         nullable=True,
     )
 
+    delivered_at = Column(
+        DateTime,
+        nullable=True,
+    )
+
+    delivered_to = Column(
+        String(100),
+        nullable=True,
+    )
+
+    delivery_remarks = Column(
+        String(500),
+        nullable=True,
+    )
+
     created_at = Column(
         DateTime,
         nullable=False,
