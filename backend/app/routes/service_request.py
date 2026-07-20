@@ -1,11 +1,28 @@
-from fastapi import APIRouter, Depends
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    status,
+)
 from sqlalchemy.orm import Session
 
+from app.auth.permissions import (
+    normalize_role,
+    require_roles,
+)
 from app.database import get_db
+from app.models.user import User
+from app.schemas.job_card import (
+    JobCardResponse,
+    TechnicianAssignmentCreate,
+)
 from app.schemas.service_request import (
     ServiceRequestCreate,
     ServiceRequestResponse,
     ServiceRequestUpdate,
+)
+from app.services.job_card_service import (
+    assign_technician_and_create_job_card,
 )
 from app.services.service_request_service import (
     cancel_service_request,
@@ -17,26 +34,32 @@ from app.services.service_request_service import (
     update_service_request,
 )
 
-from app.schemas.job_card import (
-    JobCardResponse,
-    TechnicianAssignmentCreate,
+
+service_operations_access = require_roles(
+    "ADMIN",
+    "SERVICE_MANAGER",
+    "SERVICE_EXECUTIVE",
 )
 
-from app.services.job_card_service import (
-    assign_technician_and_create_job_card,
+service_manager_access = require_roles(
+    "ADMIN",
+    "SERVICE_MANAGER",
 )
 
 
 router = APIRouter(
     prefix="/api/v1/service-requests",
     tags=["Service Requests"],
+    dependencies=[
+        Depends(service_operations_access),
+    ],
 )
 
 
 @router.post(
     "/",
     response_model=ServiceRequestResponse,
-    status_code=201,
+    status_code=status.HTTP_201_CREATED,
 )
 def add_service_request(
     request_data: ServiceRequestCreate,
@@ -108,7 +131,30 @@ def edit_service_request(
     service_request_id: int,
     request_data: ServiceRequestUpdate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(
+        service_operations_access
+    ),
 ):
+    update_fields = request_data.model_dump(
+        exclude_unset=True
+    )
+
+    current_role = normalize_role(
+        current_user.role
+    )
+
+    if (
+        current_role == "SERVICE_EXECUTIVE"
+        and "status" in update_fields
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Service Executives cannot change "
+                "the Service Request status"
+            ),
+        )
+
     return update_service_request(
         db,
         service_request_id,
@@ -118,6 +164,9 @@ def edit_service_request(
 
 @router.delete(
     "/{service_request_id}",
+    dependencies=[
+        Depends(service_manager_access),
+    ],
 )
 def cancel_request(
     service_request_id: int,
@@ -128,10 +177,14 @@ def cancel_request(
         service_request_id,
     )
 
+
 @router.post(
     "/{service_request_id}/assign-technician",
     response_model=JobCardResponse,
-    status_code=201,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[
+        Depends(service_manager_access),
+    ],
 )
 def assign_technician(
     service_request_id: int,

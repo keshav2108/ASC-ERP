@@ -1,7 +1,18 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Query,
+    status,
+)
 from sqlalchemy.orm import Session
 
+from app.auth.permissions import (
+    normalize_role,
+    require_roles,
+)
 from app.database import get_db
+from app.models.user import User
 from app.schemas.master_option import (
     MasterOptionCreate,
     MasterOptionResponse,
@@ -16,6 +27,19 @@ from app.services.master_option_service import (
 )
 
 
+master_option_view_access = require_roles(
+    "ADMIN",
+    "SERVICE_MANAGER",
+    "SERVICE_EXECUTIVE",
+    "TECHNICIAN",
+    "ACCOUNTANT",
+)
+
+master_option_admin_access = require_roles(
+    "ADMIN",
+)
+
+
 router = APIRouter(
     prefix="/api/v1/master-options",
     tags=["Master Options"],
@@ -25,7 +49,10 @@ router = APIRouter(
 @router.post(
     "/",
     response_model=MasterOptionResponse,
-    status_code=201,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[
+        Depends(master_option_admin_access),
+    ],
 )
 def add_master_option(
     option_data: MasterOptionCreate,
@@ -45,7 +72,23 @@ def list_master_options(
     option_type: str,
     include_inactive: bool = Query(False),
     db: Session = Depends(get_db),
+    current_user: User = Depends(
+        master_option_view_access
+    ),
 ):
+    if (
+        include_inactive
+        and normalize_role(current_user.role)
+        != "ADMIN"
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Only an Admin can view inactive "
+                "Master Options"
+            ),
+        )
+
     return get_master_options(
         db,
         option_type,
@@ -60,6 +103,9 @@ def list_master_options(
 def get_master_option(
     option_id: int,
     db: Session = Depends(get_db),
+    _current_user: User = Depends(
+        master_option_view_access
+    ),
 ):
     return get_master_option_by_id(
         db,
@@ -70,6 +116,9 @@ def get_master_option(
 @router.patch(
     "/{option_id}",
     response_model=MasterOptionResponse,
+    dependencies=[
+        Depends(master_option_admin_access),
+    ],
 )
 def edit_master_option(
     option_id: int,
@@ -85,6 +134,9 @@ def edit_master_option(
 
 @router.delete(
     "/{option_id}",
+    dependencies=[
+        Depends(master_option_admin_access),
+    ],
 )
 def remove_master_option(
     option_id: int,

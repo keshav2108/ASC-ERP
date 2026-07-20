@@ -49,6 +49,15 @@ def change_job_card_status(
         new_status
     )
 
+    if normalized_new_status == "DELIVERED":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Use the delivery endpoint to mark "
+                "a product as delivered"
+            ),
+        )
+
     validate_workflow_transition(
         db,
         current_status,
@@ -78,10 +87,6 @@ def change_job_card_status(
         if job_card.started_at is None:
             job_card.started_at = get_current_time()
 
-        if job_card.technician:
-            job_card.technician.availability_status = (
-                "BUSY"
-            )
 
     if normalized_new_status == "COMPLETED":
         if job_card.completed_at is None:
@@ -92,13 +97,10 @@ def change_job_card_status(
                 "AVAILABLE"
             )
 
-    if normalized_new_status == "READY_FOR_DELIVERY":
-        if job_card.technician:
-            job_card.technician.availability_status = (
-                "AVAILABLE"
-            )
-
-    if normalized_new_status == "CANCELLED":
+    if normalized_new_status in {
+        "READY_FOR_DELIVERY",
+        "CANCELLED",
+    }:
         if job_card.technician:
             job_card.technician.availability_status = (
                 "AVAILABLE"

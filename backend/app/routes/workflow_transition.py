@@ -1,7 +1,18 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Query,
+    status,
+)
 from sqlalchemy.orm import Session
 
+from app.auth.permissions import (
+    normalize_role,
+    require_roles,
+)
 from app.database import get_db
+from app.models.user import User
 from app.schemas.workflow_transition import (
     WorkflowTransitionCreate,
     WorkflowTransitionResponse,
@@ -17,6 +28,19 @@ from app.services.workflow_transition_service import (
 )
 
 
+workflow_view_access = require_roles(
+    "ADMIN",
+    "SERVICE_MANAGER",
+    "SERVICE_EXECUTIVE",
+    "TECHNICIAN",
+    "ACCOUNTANT",
+)
+
+workflow_admin_access = require_roles(
+    "ADMIN",
+)
+
+
 router = APIRouter(
     prefix="/api/v1/workflow-transitions",
     tags=["Workflow Transitions"],
@@ -26,7 +50,10 @@ router = APIRouter(
 @router.post(
     "/",
     response_model=WorkflowTransitionResponse,
-    status_code=201,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[
+        Depends(workflow_admin_access),
+    ],
 )
 def add_workflow_transition(
     transition_data: WorkflowTransitionCreate,
@@ -45,7 +72,23 @@ def add_workflow_transition(
 def list_workflow_transitions(
     include_inactive: bool = Query(False),
     db: Session = Depends(get_db),
+    current_user: User = Depends(
+        workflow_view_access
+    ),
 ):
+    if (
+        include_inactive
+        and normalize_role(current_user.role)
+        != "ADMIN"
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Only an Admin can view inactive "
+                "workflow transitions"
+            ),
+        )
+
     return get_workflow_transitions(
         db,
         include_inactive,
@@ -59,6 +102,9 @@ def list_workflow_transitions(
 def list_allowed_transitions(
     current_status: str,
     db: Session = Depends(get_db),
+    _current_user: User = Depends(
+        workflow_view_access
+    ),
 ):
     return get_allowed_transitions(
         db,
@@ -73,6 +119,9 @@ def list_allowed_transitions(
 def get_workflow_transition(
     transition_id: int,
     db: Session = Depends(get_db),
+    _current_user: User = Depends(
+        workflow_view_access
+    ),
 ):
     return get_workflow_transition_by_id(
         db,
@@ -83,6 +132,9 @@ def get_workflow_transition(
 @router.patch(
     "/{transition_id}",
     response_model=WorkflowTransitionResponse,
+    dependencies=[
+        Depends(workflow_admin_access),
+    ],
 )
 def edit_workflow_transition(
     transition_id: int,
@@ -98,6 +150,9 @@ def edit_workflow_transition(
 
 @router.delete(
     "/{transition_id}",
+    dependencies=[
+        Depends(workflow_admin_access),
+    ],
 )
 def remove_workflow_transition(
     transition_id: int,

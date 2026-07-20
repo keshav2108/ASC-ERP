@@ -44,12 +44,6 @@ class JobCardUpdate(BaseModel):
         ge=0,
     )
 
-    status: str | None = Field(
-        default=None,
-        min_length=1,
-        max_length=30,
-    )
-
 
 class TechnicianSummary(BaseModel):
     id: int
@@ -60,7 +54,7 @@ class TechnicianSummary(BaseModel):
     availability_status: str
 
     model_config = {
-        "from_attributes": True
+        "from_attributes": True,
     }
 
 
@@ -73,7 +67,7 @@ class JobServiceRequestSummary(BaseModel):
     status: str
 
     model_config = {
-        "from_attributes": True
+        "from_attributes": True,
     }
 
 
@@ -88,19 +82,21 @@ class JobCardResponse(BaseModel):
     repair_notes: str | None
 
     labour_charge: Decimal
-
     status: str
 
     assigned_at: datetime
     started_at: datetime | None
     completed_at: datetime | None
 
+    delivered_at: datetime | None
+    delivered_to: str | None
+    delivery_remarks: str | None
+
     created_at: datetime
 
     technician: TechnicianSummary
-
     service_request: JobServiceRequestSummary
 
     model_config = {
-        "from_attributes": True
+        "from_attributes": True,
     }

@@ -1,7 +1,19 @@
-from fastapi import APIRouter, Depends
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    status,
+)
 from sqlalchemy.orm import Session
 
+from app.auth.permissions import (
+    normalize_role,
+    require_roles,
+)
 from app.database import get_db
+from app.models.job_card import JobCard
+from app.models.technician import Technician
+from app.models.user import User
 from app.schemas.job_card import (
     JobCardResponse,
     JobCardUpdate,
@@ -17,10 +29,83 @@ from app.services.job_card_workflow_service import (
 )
 
 
+job_card_view_access = require_roles(
+    "ADMIN",
+    "SERVICE_MANAGER",
+    "SERVICE_EXECUTIVE",
+    "TECHNICIAN",
+    "ACCOUNTANT",
+)
+
+job_card_manager_access = require_roles(
+    "ADMIN",
+    "SERVICE_MANAGER",
+)
+
+job_card_technical_access = require_roles(
+    "ADMIN",
+    "SERVICE_MANAGER",
+    "TECHNICIAN",
+)
+
+
 router = APIRouter(
     prefix="/api/v1/job-cards",
     tags=["Job Cards"],
 )
+
+
+def get_user_technician(
+    db: Session,
+    current_user: User,
+) -> Technician:
+    technician = (
+        db.query(Technician)
+        .filter(
+            Technician.user_id
+            == current_user.id,
+            Technician.status == "ACTIVE",
+        )
+        .first()
+    )
+
+    if technician is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Your account is not linked to "
+                "an active technician profile"
+            ),
+        )
+
+    return technician
+
+
+def validate_job_card_access(
+    db: Session,
+    current_user: User,
+    job_card: JobCard,
+) -> None:
+    current_role = normalize_role(
+        current_user.role
+    )
+
+    if current_role != "TECHNICIAN":
+        return
+
+    technician = get_user_technician(
+        db,
+        current_user,
+    )
+
+    if job_card.technician_id != technician.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "You can access only Job Cards "
+                "assigned to you"
+            ),
+        )
 
 
 @router.get(
@@ -29,7 +114,25 @@ router = APIRouter(
 )
 def list_job_cards(
     db: Session = Depends(get_db),
+    current_user: User = Depends(
+        job_card_view_access
+    ),
 ):
+    current_role = normalize_role(
+        current_user.role
+    )
+
+    if current_role == "TECHNICIAN":
+        technician = get_user_technician(
+            db,
+            current_user,
+        )
+
+        return get_technician_job_cards(
+            db,
+            technician.id,
+        )
+
     return get_job_cards(db)
 
 
@@ -40,7 +143,31 @@ def list_job_cards(
 def list_technician_job_cards(
     technician_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(
+        job_card_view_access
+    ),
 ):
+    current_role = normalize_role(
+        current_user.role
+    )
+
+    if current_role == "TECHNICIAN":
+        technician = get_user_technician(
+            db,
+            current_user,
+        )
+
+        if technician.id != technician_id:
+            raise HTTPException(
+                status_code=(
+                    status.HTTP_403_FORBIDDEN
+                ),
+                detail=(
+                    "You can view only your "
+                    "assigned Job Cards"
+                ),
+            )
+
     return get_technician_job_cards(
         db,
         technician_id,
@@ -54,16 +181,30 @@ def list_technician_job_cards(
 def get_job_card(
     job_card_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(
+        job_card_view_access
+    ),
 ):
-    return get_job_card_by_id(
+    job_card = get_job_card_by_id(
         db,
         job_card_id,
     )
+
+    validate_job_card_access(
+        db,
+        current_user,
+        job_card,
+    )
+
+    return job_card
 
 
 @router.patch(
     "/{job_card_id}",
     response_model=JobCardResponse,
+    dependencies=[
+        Depends(job_card_manager_access),
+    ],
 )
 def edit_job_card(
     job_card_id: int,
@@ -84,7 +225,21 @@ def edit_job_card(
 def accept_job(
     job_card_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(
+        job_card_technical_access
+    ),
 ):
+    job_card = get_job_card_by_id(
+        db,
+        job_card_id,
+    )
+
+    validate_job_card_access(
+        db,
+        current_user,
+        job_card,
+    )
+
     return change_job_card_status(
         db,
         job_card_id,
@@ -99,7 +254,21 @@ def accept_job(
 def start_diagnosis(
     job_card_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(
+        job_card_technical_access
+    ),
 ):
+    job_card = get_job_card_by_id(
+        db,
+        job_card_id,
+    )
+
+    validate_job_card_access(
+        db,
+        current_user,
+        job_card,
+    )
+
     return change_job_card_status(
         db,
         job_card_id,
@@ -114,7 +283,21 @@ def start_diagnosis(
 def waiting_for_parts(
     job_card_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(
+        job_card_technical_access
+    ),
 ):
+    job_card = get_job_card_by_id(
+        db,
+        job_card_id,
+    )
+
+    validate_job_card_access(
+        db,
+        current_user,
+        job_card,
+    )
+
     return change_job_card_status(
         db,
         job_card_id,
@@ -129,7 +312,21 @@ def waiting_for_parts(
 def start_repair(
     job_card_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(
+        job_card_technical_access
+    ),
 ):
+    job_card = get_job_card_by_id(
+        db,
+        job_card_id,
+    )
+
+    validate_job_card_access(
+        db,
+        current_user,
+        job_card,
+    )
+
     return change_job_card_status(
         db,
         job_card_id,
@@ -144,7 +341,21 @@ def start_repair(
 def start_testing(
     job_card_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(
+        job_card_technical_access
+    ),
 ):
+    job_card = get_job_card_by_id(
+        db,
+        job_card_id,
+    )
+
+    validate_job_card_access(
+        db,
+        current_user,
+        job_card,
+    )
+
     return change_job_card_status(
         db,
         job_card_id,
@@ -159,7 +370,21 @@ def start_testing(
 def complete_job(
     job_card_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(
+        job_card_technical_access
+    ),
 ):
+    job_card = get_job_card_by_id(
+        db,
+        job_card_id,
+    )
+
+    validate_job_card_access(
+        db,
+        current_user,
+        job_card,
+    )
+
     return change_job_card_status(
         db,
         job_card_id,
@@ -170,6 +395,9 @@ def complete_job(
 @router.post(
     "/{job_card_id}/ready-for-delivery",
     response_model=JobCardResponse,
+    dependencies=[
+        Depends(job_card_manager_access),
+    ],
 )
 def ready_for_delivery(
     job_card_id: int,
@@ -185,6 +413,9 @@ def ready_for_delivery(
 @router.post(
     "/{job_card_id}/cancel",
     response_model=JobCardResponse,
+    dependencies=[
+        Depends(job_card_manager_access),
+    ],
 )
 def cancel_job(
     job_card_id: int,

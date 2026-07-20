@@ -1,6 +1,11 @@
-from fastapi import APIRouter, Depends
+from fastapi import (
+    APIRouter,
+    Depends,
+    status,
+)
 from sqlalchemy.orm import Session
 
+from app.auth.permissions import require_roles
 from app.database import get_db
 from app.schemas.payment import (
     InvoicePaymentSummary,
@@ -16,6 +21,18 @@ from app.services.payment_service import (
 )
 
 
+payment_view_access = require_roles(
+    "ADMIN",
+    "SERVICE_MANAGER",
+    "ACCOUNTANT",
+)
+
+payment_manage_access = require_roles(
+    "ADMIN",
+    "ACCOUNTANT",
+)
+
+
 router = APIRouter(
     prefix="/api/v1/payments",
     tags=["Payments"],
@@ -25,7 +42,10 @@ router = APIRouter(
 @router.post(
     "/",
     response_model=PaymentResponse,
-    status_code=201,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[
+        Depends(payment_manage_access),
+    ],
 )
 def add_payment(
     payment_data: PaymentCreate,
@@ -40,6 +60,9 @@ def add_payment(
 @router.get(
     "/",
     response_model=list[PaymentResponse],
+    dependencies=[
+        Depends(payment_view_access),
+    ],
 )
 def list_payments(
     db: Session = Depends(get_db),
@@ -50,6 +73,9 @@ def list_payments(
 @router.get(
     "/invoice/{invoice_id}",
     response_model=InvoicePaymentSummary,
+    dependencies=[
+        Depends(payment_view_access),
+    ],
 )
 def list_invoice_payments(
     invoice_id: int,
@@ -64,6 +90,9 @@ def list_invoice_payments(
 @router.get(
     "/{payment_id}",
     response_model=PaymentResponse,
+    dependencies=[
+        Depends(payment_view_access),
+    ],
 )
 def get_payment(
     payment_id: int,
@@ -78,6 +107,9 @@ def get_payment(
 @router.post(
     "/{payment_id}/cancel",
     response_model=PaymentResponse,
+    dependencies=[
+        Depends(payment_manage_access),
+    ],
 )
 def cancel_recorded_payment(
     payment_id: int,

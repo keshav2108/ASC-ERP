@@ -13,3 +13,9 @@ __pycache__/
 # Flutter later
 frontend/.dart_tool/
 frontend/build/
+
+**/__pycache__/
+.env.*
+!.env.example
+*.bak
+*.bak.*

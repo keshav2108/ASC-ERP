@@ -11,8 +11,8 @@ class DashboardSummary(BaseModel):
     active_jobs: int
     completed_jobs: int
     delivered_jobs: int
-    available_technicians: int
-    busy_technicians: int
+    active_technicians: int
+    technicians_with_active_jobs: int
     low_stock_parts: int
     unpaid_invoices: int
     partially_paid_invoices: int

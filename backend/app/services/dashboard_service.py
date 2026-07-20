@@ -316,23 +316,33 @@ def get_dashboard_overview(
         or 0
     )
 
-    available_technicians = (
+    active_technicians = (
         db.query(func.count(Technician.id))
         .filter(
             Technician.status == "ACTIVE",
-            Technician.availability_status
-            == "AVAILABLE",
         )
         .scalar()
         or 0
     )
 
-    busy_technicians = (
-        db.query(func.count(Technician.id))
+    technicians_with_active_jobs = (
+        db.query(
+            func.count(
+                func.distinct(
+                    JobCard.technician_id
+                )
+            )
+        )
+        .join(
+            Technician,
+            Technician.id
+            == JobCard.technician_id,
+        )
         .filter(
             Technician.status == "ACTIVE",
-            Technician.availability_status
-            == "BUSY",
+            JobCard.status.in_(
+                ACTIVE_JOB_STATUSES
+            ),
         )
         .scalar()
         or 0
@@ -397,11 +407,11 @@ def get_dashboard_overview(
             "active_jobs": active_jobs,
             "completed_jobs": completed_jobs,
             "delivered_jobs": delivered_jobs,
-            "available_technicians": (
-                available_technicians
+            "active_technicians": (
+                active_technicians
             ),
-            "busy_technicians": (
-                busy_technicians
+            "technicians_with_active_jobs": (
+                technicians_with_active_jobs
             ),
             "low_stock_parts": (
                 low_stock_parts_count

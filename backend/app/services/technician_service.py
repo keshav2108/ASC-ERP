@@ -92,6 +92,8 @@ def create_technician(
         mobile=technician_data.mobile,
         specialization=technician_data.specialization,
         experience_years=technician_data.experience_years,
+        status="ACTIVE",
+        availability_status="AVAILABLE",
     )
 
     db.add(technician)
@@ -193,6 +195,12 @@ def update_technician(
             field,
             value,
         )
+
+    # Technician availability is controlled by employment status.
+    if technician.status == "ACTIVE":
+        technician.availability_status = "AVAILABLE"
+    else:
+        technician.availability_status = "UNAVAILABLE"
 
     db.commit()
     db.refresh(technician)

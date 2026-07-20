@@ -8,11 +8,7 @@ from app.schemas.job_card import (
     JobCardUpdate,
     TechnicianAssignmentCreate,
 )
-from app.services.master_validation_service import (
-    validate_master_option,
-)
 from app.utils.id_generator import generate_code
-from app.utils.timezone import get_current_time
 
 
 def get_job_card_by_id(
@@ -100,12 +96,6 @@ def assign_technician_and_create_job_card(
             detail="Active technician not found",
         )
 
-    if technician.availability_status != "AVAILABLE":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Technician is not available",
-        )
-
     job_status = validate_master_option(
         db,
         "JOB_STATUS",
@@ -134,7 +124,6 @@ def assign_technician_and_create_job_card(
     )
 
     service_request.status = service_status
-    technician.availability_status = "BUSY"
 
     db.add(job_card)
 
@@ -216,32 +205,6 @@ def update_job_card(
                 detail="Active technician not found",
             )
 
-        if (
-            new_technician.id != job_card.technician_id
-            and new_technician.availability_status
-            != "AVAILABLE"
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Technician is not available",
-            )
-
-        if new_technician.id != job_card.technician_id:
-            old_technician = job_card.technician
-
-            if old_technician:
-                old_technician.availability_status = (
-                    "AVAILABLE"
-                )
-
-            new_technician.availability_status = "BUSY"
-
-    if "status" in update_data:
-        update_data["status"] = validate_master_option(
-            db,
-            "JOB_STATUS",
-            update_data["status"],
-        )
 
     for field, value in update_data.items():
         setattr(
@@ -250,48 +213,6 @@ def update_job_card(
             value,
         )
 
-    if job_card.status == "IN_PROGRESS":
-        if job_card.started_at is None:
-            job_card.started_at = get_current_time()
-
-        job_card.service_request.status = (
-            validate_master_option(
-                db,
-                "SERVICE_STATUS",
-                "IN_PROGRESS",
-            )
-        )
-
-    elif job_card.status == "COMPLETED":
-        if job_card.completed_at is None:
-            job_card.completed_at = get_current_time()
-
-        job_card.service_request.status = (
-            validate_master_option(
-                db,
-                "SERVICE_STATUS",
-                "COMPLETED",
-            )
-        )
-
-        if job_card.technician:
-            job_card.technician.availability_status = (
-                "AVAILABLE"
-            )
-
-    elif job_card.status == "CANCELLED":
-        job_card.service_request.status = (
-            validate_master_option(
-                db,
-                "SERVICE_STATUS",
-                "CANCELLED",
-            )
-        )
-
-        if job_card.technician:
-            job_card.technician.availability_status = (
-                "AVAILABLE"
-            )
 
     try:
         db.commit()

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
+from app.auth.permissions import require_roles
 from app.database import get_db
 from app.schemas.delivery import (
     DeliveryCreate,
@@ -9,6 +10,19 @@ from app.schemas.delivery import (
 from app.services.delivery_service import (
     deliver_product,
     get_delivery_details,
+)
+
+
+delivery_view_access = require_roles(
+    "ADMIN",
+    "SERVICE_MANAGER",
+    "SERVICE_EXECUTIVE",
+    "ACCOUNTANT",
+)
+
+delivery_manage_access = require_roles(
+    "ADMIN",
+    "SERVICE_MANAGER",
 )
 
 
@@ -21,6 +35,9 @@ router = APIRouter(
 @router.post(
     "/job-card/{job_card_id}",
     response_model=DeliveryResponse,
+    dependencies=[
+        Depends(delivery_manage_access),
+    ],
 )
 def deliver_job_card_product(
     job_card_id: int,
@@ -37,6 +54,9 @@ def deliver_job_card_product(
 @router.get(
     "/job-card/{job_card_id}",
     response_model=DeliveryResponse,
+    dependencies=[
+        Depends(delivery_view_access),
+    ],
 )
 def view_delivery_details(
     job_card_id: int,

@@ -1,6 +1,10 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
+from app.auth.permissions import (
+    get_active_user,
+    require_roles,
+)
 from app.database import get_db
 from app.schemas.technician import (
     TechnicianCreate,
@@ -16,16 +20,28 @@ from app.services.technician_service import (
 )
 
 
+manage_technicians = require_roles(
+    "ADMIN",
+    "SERVICE_MANAGER",
+)
+
+
 router = APIRouter(
     prefix="/api/v1/technicians",
     tags=["Technicians"],
+    dependencies=[
+        Depends(get_active_user),
+    ],
 )
 
 
 @router.post(
     "/",
     response_model=TechnicianResponse,
-    status_code=201,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[
+        Depends(manage_technicians),
+    ],
 )
 def add_technician(
     technician_data: TechnicianCreate,
@@ -64,6 +80,9 @@ def get_technician(
 @router.patch(
     "/{technician_id}",
     response_model=TechnicianResponse,
+    dependencies=[
+        Depends(manage_technicians),
+    ],
 )
 def edit_technician(
     technician_id: int,
@@ -79,6 +98,9 @@ def edit_technician(
 
 @router.delete(
     "/{technician_id}",
+    dependencies=[
+        Depends(manage_technicians),
+    ],
 )
 def remove_technician(
     technician_id: int,
