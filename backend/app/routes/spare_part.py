@@ -34,6 +34,13 @@ spare_part_view_access = require_roles(
     "ACCOUNTANT",
 )
 
+spare_part_selection_access = require_roles(
+    "ADMIN",
+    "SERVICE_MANAGER",
+    "ACCOUNTANT",
+    "TECHNICIAN",
+)
+
 spare_part_manage_access = require_roles(
     "ADMIN",
     "SERVICE_MANAGER",
@@ -72,7 +79,7 @@ def list_spare_parts(
     include_inactive: bool = Query(False),
     db: Session = Depends(get_db),
     current_user: User = Depends(
-        spare_part_view_access
+        spare_part_selection_access
     ),
 ):
     if (

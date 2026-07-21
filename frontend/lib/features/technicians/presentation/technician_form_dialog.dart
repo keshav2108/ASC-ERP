@@ -34,23 +34,17 @@ class TechnicianFormDialog extends StatefulWidget {
 
   final Technician? technician;
 
-  final Future<void> Function(
-    TechnicianCreateInput input,
-  )? onCreate;
+  final Future<void> Function(TechnicianCreateInput input)? onCreate;
 
-  final Future<void> Function(
-    TechnicianUpdateInput input,
-  )? onUpdate;
+  final Future<void> Function(TechnicianUpdateInput input)? onUpdate;
 
   bool get isEditing => technician != null;
 
   @override
-  State<TechnicianFormDialog> createState() =>
-      _TechnicianFormDialogState();
+  State<TechnicianFormDialog> createState() => _TechnicianFormDialogState();
 }
 
-class _TechnicianFormDialogState
-    extends State<TechnicianFormDialog> {
+class _TechnicianFormDialogState extends State<TechnicianFormDialog> {
   final _formKey = GlobalKey<FormState>();
 
   late final TextEditingController _fullNameController;
@@ -71,9 +65,7 @@ class _TechnicianFormDialogState
       text: technician?.fullName ?? '',
     );
 
-    _mobileController = TextEditingController(
-      text: technician?.mobile ?? '',
-    );
+    _mobileController = TextEditingController(text: technician?.mobile ?? '');
 
     _specializationController = TextEditingController(
       text: technician?.specialization ?? '',
@@ -101,8 +93,7 @@ class _TechnicianFormDialogState
       return;
     }
 
-    final isValid =
-        _formKey.currentState?.validate() ?? false;
+    final isValid = _formKey.currentState?.validate() ?? false;
 
     if (!isValid) {
       return;
@@ -121,17 +112,14 @@ class _TechnicianFormDialogState
         final onUpdate = widget.onUpdate;
 
         if (onUpdate == null) {
-          throw StateError(
-            'Technician update callback is missing.',
-          );
+          throw StateError('Technician update callback is missing.');
         }
 
         await onUpdate(
           TechnicianUpdateInput(
             fullName: _fullNameController.text,
             mobile: _mobileController.text,
-            specialization:
-                _specializationController.text,
+            specialization: _specializationController.text,
             experienceYears: experienceYears,
             includeSpecialization: true,
           ),
@@ -140,17 +128,14 @@ class _TechnicianFormDialogState
         final onCreate = widget.onCreate;
 
         if (onCreate == null) {
-          throw StateError(
-            'Technician creation callback is missing.',
-          );
+          throw StateError('Technician creation callback is missing.');
         }
 
         await onCreate(
           TechnicianCreateInput(
             fullName: _fullNameController.text,
             mobile: _mobileController.text,
-            specialization:
-                _specializationController.text,
+            specialization: _specializationController.text,
             experienceYears: experienceYears,
           ),
         );
@@ -184,20 +169,15 @@ class _TechnicianFormDialogState
         insetPadding: const EdgeInsets.all(18),
         clipBehavior: Clip.antiAlias,
         child: ConstrainedBox(
-          constraints: const BoxConstraints(
-            maxWidth: 680,
-            maxHeight: 820,
-          ),
+          constraints: const BoxConstraints(maxWidth: 680, maxHeight: 820),
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(28),
             child: Form(
               key: _formKey,
-              autovalidateMode:
-                  AutovalidateMode.onUserInteraction,
+              autovalidateMode: AutovalidateMode.onUserInteraction,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildHeader(
                     context,
@@ -212,21 +192,15 @@ class _TechnicianFormDialogState
                   const SizedBox(height: 24),
                   LayoutBuilder(
                     builder: (context, constraints) {
-                      final useTwoColumns =
-                          constraints.maxWidth >= 560;
+                      final useTwoColumns = constraints.maxWidth >= 560;
 
                       if (useTwoColumns) {
                         return Row(
-                          crossAxisAlignment:
-                              CrossAxisAlignment.start,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(
-                              child: _buildFullNameField(),
-                            ),
+                            Expanded(child: _buildFullNameField()),
                             const SizedBox(width: 16),
-                            Expanded(
-                              child: _buildMobileField(),
-                            ),
+                            Expanded(child: _buildMobileField()),
                           ],
                         );
                       }
@@ -245,27 +219,17 @@ class _TechnicianFormDialogState
                   const SizedBox(height: 16),
                   _buildExperienceField(),
                   AnimatedSwitcher(
-                    duration:
-                        const Duration(milliseconds: 220),
+                    duration: const Duration(milliseconds: 220),
                     switchInCurve: Curves.easeOutCubic,
                     switchOutCurve: Curves.easeInCubic,
                     child: _errorMessage == null
                         ? const SizedBox.shrink(
-                            key: ValueKey(
-                              'no-technician-form-error',
-                            ),
+                            key: ValueKey('no-technician-form-error'),
                           )
                         : Padding(
-                            key: const ValueKey(
-                              'technician-form-error',
-                            ),
-                            padding:
-                                const EdgeInsets.only(
-                                  top: 18,
-                                ),
-                            child: _FormErrorBox(
-                              message: _errorMessage!,
-                            ),
+                            key: const ValueKey('technician-form-error'),
+                            padding: const EdgeInsets.only(top: 18),
+                            child: _FormErrorBox(message: _errorMessage!),
                           ),
                   ),
                   const SizedBox(height: 28),
@@ -292,18 +256,13 @@ class _TechnicianFormDialogState
           curve: Curves.easeOutBack,
           tween: Tween(begin: 0.88, end: 1),
           builder: (context, scale, child) {
-            return Transform.scale(
-              scale: scale,
-              child: child,
-            );
+            return Transform.scale(scale: scale, child: child);
           },
           child: Container(
             width: 58,
             height: 58,
             decoration: BoxDecoration(
-              color: AppColors.primary.withValues(
-                alpha: 0.12,
-              ),
+              color: AppColors.primary.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(17),
             ),
             child: Icon(
@@ -318,19 +277,13 @@ class _TechnicianFormDialogState
         const SizedBox(width: 16),
         Expanded(
           child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                isEditing
-                    ? 'Edit Technician'
-                    : 'Add Technician',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleLarge
-                    ?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
+                isEditing ? 'Edit Technician' : 'Add Technician',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 5),
               Text(
@@ -339,9 +292,7 @@ class _TechnicianFormDialogState
                           'professional information.'
                     : 'Create a technician profile for '
                           'service assignments.',
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
-                ),
+                style: const TextStyle(color: AppColors.textSecondary),
               ),
               if (technician != null) ...[
                 const SizedBox(height: 7),
@@ -381,9 +332,7 @@ class _TechnicianFormDialogState
       decoration: BoxDecoration(
         color: AppColors.primary.withValues(alpha: 0.055),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: AppColors.primary.withValues(alpha: 0.15),
-        ),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.15)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -442,9 +391,7 @@ class _TechnicianFormDialogState
           return 'Name cannot exceed 100 characters.';
         }
 
-        final validName = RegExp(
-          r"^[A-Za-zÀ-ÿ.'\- ]+$",
-        ).hasMatch(name);
+        final validName = RegExp(r"^[A-Za-zÀ-ÿ.'\- ]+$").hasMatch(name);
 
         if (!validName) {
           return 'Use letters and normal name characters.';
@@ -461,13 +408,15 @@ class _TechnicianFormDialogState
       enabled: !_isSubmitting,
       keyboardType: TextInputType.phone,
       textInputAction: TextInputAction.next,
-      maxLength: 15,
+      maxLength: 10,
       inputFormatters: [
         FilteringTextInputFormatter.digitsOnly,
+        LengthLimitingTextInputFormatter(10),
       ],
       decoration: const InputDecoration(
         labelText: 'Mobile number',
-        hintText: '10 to 15 digits',
+        prefixText: '+91 ',
+        hintText: '10 digit mobile number',
         prefixIcon: Icon(Icons.phone_outlined),
       ),
       validator: (value) {
@@ -477,8 +426,8 @@ class _TechnicianFormDialogState
           return 'Enter mobile number.';
         }
 
-        if (!RegExp(r'^[0-9]{10,15}$').hasMatch(mobile)) {
-          return 'Enter a valid 10 to 15 digit number.';
+        if (!RegExp(r'^\d{10}$').hasMatch(mobile)) {
+          return 'Enter a 10 digit mobile number.';
         }
 
         return null;
@@ -495,11 +444,9 @@ class _TechnicianFormDialogState
       maxLength: 150,
       decoration: const InputDecoration(
         labelText: 'Specialization',
-        hintText:
-            'Example: Electrical appliances, Mixer repair',
+        hintText: 'Example: Electrical appliances, Mixer repair',
         prefixIcon: Icon(Icons.handyman_outlined),
-        helperText:
-            'Optional — describe the technician’s main skills.',
+        helperText: 'Optional — describe the technician’s main skills.',
       ),
       validator: (value) {
         final specialization = value?.trim() ?? '';
@@ -521,9 +468,7 @@ class _TechnicianFormDialogState
       keyboardType: TextInputType.number,
       textInputAction: TextInputAction.done,
       maxLength: 2,
-      inputFormatters: [
-        FilteringTextInputFormatter.digitsOnly,
-      ],
+      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
       onFieldSubmitted: (_) {
         _submit();
       },
@@ -586,9 +531,7 @@ class _TechnicianFormDialogState
                     isEditing
                         ? Icons.save_outlined
                         : Icons.person_add_alt_1_rounded,
-                    key: const ValueKey(
-                      'technician-save-icon',
-                    ),
+                    key: const ValueKey('technician-save-icon'),
                   ),
           ),
           label: Text(
@@ -617,9 +560,7 @@ class _FormErrorBox extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.danger.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(13),
-        border: Border.all(
-          color: AppColors.danger.withValues(alpha: 0.25),
-        ),
+        border: Border.all(color: AppColors.danger.withValues(alpha: 0.25)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,

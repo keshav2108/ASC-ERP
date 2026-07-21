@@ -8,7 +8,7 @@ from app.schemas.job_card import (
     JobCardUpdate,
     TechnicianAssignmentCreate,
 )
-from app.utils.id_generator import generate_code
+from app.services.master_validation_service import validate_master_option
 
 
 def get_job_card_by_id(
@@ -108,13 +108,18 @@ def assign_technician_and_create_job_card(
         "ASSIGNED",
     )
 
-    job_count = db.query(JobCard).count()
+    request_code = service_request.request_code
+
+    if not request_code.startswith("SR"):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Invalid service request code",
+        )
+
+    job_code = f"JOB{request_code[2:]}"
 
     job_card = JobCard(
-        job_code=generate_code(
-            "JOB",
-            job_count + 1,
-        ),
+        job_code=job_code,
         service_request_id=service_request_id,
         technician_id=assignment_data.technician_id,
         diagnosis=assignment_data.diagnosis,

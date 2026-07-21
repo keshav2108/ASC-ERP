@@ -19,3 +19,10 @@ frontend/build/
 !.env.example
 *.bak
 *.bak.*
+
+# Local database and workflow backups
+backend/backups/
+*.sql
+
+# Temporary broken/recovery source files
+*.broken.*

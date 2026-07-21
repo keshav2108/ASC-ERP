@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/auth/app_permissions.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../auth/data/auth_provider.dart';
 import '../../dashboard/data/dashboard_provider.dart';
 import '../../job_cards/data/job_card_model.dart';
 import '../data/service_request_model.dart';
 import '../data/service_request_provider.dart';
+import 'register_complaint_dialog.dart';
 import 'service_request_form_dialog.dart';
 import 'widgets/assign_technician_dialog.dart';
 
@@ -36,9 +38,11 @@ class _ServiceRequestsScreenState extends ConsumerState<ServiceRequestsScreen> {
       context: context,
       barrierDismissible: false,
       builder: (context) {
-        return ServiceRequestFormDialog.create(
-          onCreate: (input) async {
-            await ref.read(serviceRequestProvider.notifier).addRequest(input);
+        return RegisterComplaintDialog(
+          onRegister: (input) async {
+            await ref
+                .read(serviceRequestProvider.notifier)
+                .registerComplaint(input);
           },
         );
       },
@@ -47,7 +51,7 @@ class _ServiceRequestsScreenState extends ConsumerState<ServiceRequestsScreen> {
     if (saved == true && mounted) {
       ref.invalidate(dashboardProvider);
 
-      _showMessage('Service request created successfully.');
+      _showMessage('Customer complaint registered successfully.');
     }
   }
 
@@ -385,25 +389,15 @@ bool _canAssignTechnician(ServiceRequest request) {
   return request.status.trim().toUpperCase() == 'OPEN';
 }
 
-String _currentUserRole(BuildContext context) {
+bool _canManageServiceRequests(BuildContext context) {
   final authState = ProviderScope.containerOf(
     context,
     listen: false,
   ).read(authProvider);
 
-  return authState.user?['role']
-          ?.toString()
-          .trim()
-          .toUpperCase()
-          .replaceAll('-', '_')
-          .replaceAll(' ', '_') ??
-      '';
-}
-
-bool _canManageServiceRequests(BuildContext context) {
-  final role = _currentUserRole(context);
-
-  return role == 'ADMIN' || role == 'SERVICE_MANAGER';
+  return AppPermissions.canManageServiceRequests(
+    AppRoles.fromUser(authState.user),
+  );
 }
 
 class _ServiceRequestsHeader extends StatelessWidget {
@@ -692,107 +686,120 @@ class _ServiceRequestsTable extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       clipBehavior: Clip.antiAlias,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: DataTable(
-          horizontalMargin: 22,
-          columnSpacing: 30,
-          columns: const [
-            DataColumn(label: Text('Request')),
-            DataColumn(label: Text('Customer')),
-            DataColumn(label: Text('Product')),
-            DataColumn(label: Text('Complaint')),
-            DataColumn(label: Text('Priority')),
-            DataColumn(label: Text('Status')),
-            DataColumn(label: Text('Created')),
-            DataColumn(label: Text('Actions')),
-          ],
-          rows: requests.map((request) {
-            return DataRow(
-              cells: [
-                DataCell(
-                  Text(
-                    request.requestCode,
-                    style: const TextStyle(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-                DataCell(
-                  SizedBox(
-                    width: 170,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minWidth: constraints.maxWidth),
+              child: DataTable(
+                horizontalMargin: 22,
+                columnSpacing: 30,
+                columns: const [
+                  DataColumn(label: Text('Request')),
+                  DataColumn(label: Text('Customer')),
+                  DataColumn(label: Text('Product')),
+                  DataColumn(label: Text('Complaint')),
+                  DataColumn(label: Text('Priority')),
+                  DataColumn(label: Text('Status')),
+                  DataColumn(label: Text('Created')),
+                  DataColumn(label: Text('Actions')),
+                ],
+                rows: requests.map((request) {
+                  return DataRow(
+                    cells: [
+                      DataCell(
                         Text(
-                          request.customer.fullName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                        Text(
-                          request.customer.mobile,
+                          request.requestCode,
                           style: const TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 12,
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                ),
-                DataCell(
-                  SizedBox(
-                    width: 180,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          request.customerProduct.displayName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        Text(
-                          _formatStatus(request.customerProduct.warrantyStatus),
-                          style: const TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 12,
+                      ),
+                      DataCell(
+                        SizedBox(
+                          width: 170,
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                request.customer.fullName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              Text(
+                                request.customer.mobile,
+                                style: const TextStyle(
+                                  color: AppColors.textSecondary,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                ),
-                DataCell(
-                  SizedBox(
-                    width: 155,
-                    child: Text(
-                      _formatStatus(request.complaintCategory),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ),
-                DataCell(_PriorityBadge(priority: request.priority)),
-                DataCell(_StatusBadge(status: request.status)),
-                DataCell(Text(_formatDate(request.createdAt))),
-                DataCell(
-                  _RequestActions(
-                    request: request,
-                    onAssign: onAssign,
-                    onView: onView,
-                    onEdit: onEdit,
-                    onCancel: onCancel,
-                  ),
-                ),
-              ],
-            );
-          }).toList(),
-        ),
+                      ),
+                      DataCell(
+                        SizedBox(
+                          width: 180,
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                request.customerProduct.displayName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              Text(
+                                _formatStatus(
+                                  request.customerProduct.warrantyStatus,
+                                ),
+                                style: const TextStyle(
+                                  color: AppColors.textSecondary,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      DataCell(
+                        SizedBox(
+                          width: 155,
+                          child: Text(
+                            _formatStatus(request.complaintCategory),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
+                      DataCell(_PriorityBadge(priority: request.priority)),
+                      DataCell(_StatusBadge(status: request.status)),
+                      DataCell(Text(_formatDate(request.createdAt))),
+                      DataCell(
+                        _RequestActions(
+                          request: request,
+                          onAssign: onAssign,
+                          onView: onView,
+                          onEdit: onEdit,
+                          onCancel: onCancel,
+                        ),
+                      ),
+                    ],
+                  );
+                }).toList(),
+              ),
+            ),
+          );
+        },
       ),
     );
   }

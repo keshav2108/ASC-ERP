@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/auth/app_permissions.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../auth/data/auth_provider.dart';
 import '../../dashboard/data/dashboard_provider.dart';
@@ -23,20 +24,11 @@ class _TechniciansScreenState extends ConsumerState<TechniciansScreen> {
   String _selectedAccountFilter = 'ALL';
 
   String get _currentUserRole {
-    final role = ref
-        .read(authProvider)
-        .user?['role']
-        ?.toString()
-        .trim()
-        .toUpperCase()
-        .replaceAll('-', '_')
-        .replaceAll(' ', '_');
-
-    return role ?? '';
+    return AppRoles.fromUser(ref.read(authProvider).user);
   }
 
   bool get _canManageTechnicians {
-    return _currentUserRole == 'ADMIN' || _currentUserRole == 'SERVICE_MANAGER';
+    return AppPermissions.canManageTechnicians(_currentUserRole);
   }
 
   @override
@@ -230,9 +222,8 @@ class _TechniciansScreenState extends ConsumerState<TechniciansScreen> {
     final techniciansState = ref.watch(technicianProvider);
     final authState = ref.watch(authProvider);
 
-    final role = _normalizeRole(authState.user?['role']?.toString());
-
-    final canManage = role == 'ADMIN' || role == 'SERVICE_MANAGER';
+    final role = AppRoles.fromUser(authState.user);
+    final canManage = AppPermissions.canManageTechnicians(role);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -842,128 +833,139 @@ class _TechniciansTable extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       clipBehavior: Clip.antiAlias,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: DataTable(
-          horizontalMargin: 22,
-          columnSpacing: 30,
-          columns: const [
-            DataColumn(label: Text('Technician')),
-            DataColumn(label: Text('Contact')),
-            DataColumn(label: Text('Specialization')),
-            DataColumn(label: Text('Experience')),
-            DataColumn(label: Text('Account')),
-            DataColumn(label: Text('Status')),
-            DataColumn(label: Text('Joined')),
-            DataColumn(label: Text('Actions')),
-          ],
-          rows: technicians.map((technician) {
-            return DataRow(
-              cells: [
-                DataCell(
-                  SizedBox(
-                    width: 190,
-                    child: Row(
-                      children: [
-                        CircleAvatar(
-                          backgroundColor: AppColors.primary.withValues(
-                            alpha: 0.12,
-                          ),
-                          child: Text(
-                            _initials(technician.fullName),
-                            style: const TextStyle(
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 11),
-                        Expanded(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.start,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minWidth: constraints.maxWidth),
+              child: DataTable(
+                horizontalMargin: 22,
+                columnSpacing: 30,
+                columns: const [
+                  DataColumn(label: Text('Technician')),
+                  DataColumn(label: Text('Contact')),
+                  DataColumn(label: Text('Specialization')),
+                  DataColumn(label: Text('Experience')),
+                  DataColumn(label: Text('Account')),
+                  DataColumn(label: Text('Status')),
+                  DataColumn(label: Text('Joined')),
+                  DataColumn(label: Text('Actions')),
+                ],
+                rows: technicians.map((technician) {
+                  return DataRow(
+                    cells: [
+                      DataCell(
+                        SizedBox(
+                          width: 190,
+                          child: Row(
                             children: [
-                              Text(
-                                technician.fullName,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
+                              CircleAvatar(
+                                backgroundColor: AppColors.primary.withValues(
+                                  alpha: 0.12,
+                                ),
+                                child: Text(
+                                  _initials(technician.fullName),
+                                  style: const TextStyle(
+                                    color: AppColors.primary,
+                                    fontWeight: FontWeight.w800,
+                                  ),
                                 ),
                               ),
-                              Text(
-                                technician.technicianCode,
-                                style: const TextStyle(
-                                  color: AppColors.textSecondary,
-                                  fontSize: 12,
+                              const SizedBox(width: 11),
+                              Expanded(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      technician.fullName,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    Text(
+                                      technician.technicianCode,
+                                      style: const TextStyle(
+                                        color: AppColors.textSecondary,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                ),
-                DataCell(Text(technician.mobile)),
-                DataCell(
-                  SizedBox(
-                    width: 190,
-                    child: Text(
-                      technician.specialization ?? 'General service',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ),
-                DataCell(
-                  Text(
-                    '${technician.experienceYears} '
-                    '${technician.experienceYears == 1 ? 'year' : 'years'}',
-                  ),
-                ),
-                DataCell(_AccountBadge(isLinked: technician.userId != null)),
-                DataCell(_TechnicianStatusBadge(status: technician.status)),
-                DataCell(Text(_formatDate(technician.createdAt))),
-                DataCell(
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        tooltip: 'View technician',
-                        onPressed: () {
-                          onView(technician);
-                        },
-                        icon: const Icon(Icons.visibility_outlined),
                       ),
-                      if (canManage) ...[
-                        IconButton(
-                          tooltip: 'Edit technician',
-                          onPressed: () {
-                            onEdit(technician);
-                          },
-                          icon: const Icon(Icons.edit_outlined),
+                      DataCell(Text(technician.mobile)),
+                      DataCell(
+                        SizedBox(
+                          width: 190,
+                          child: Text(
+                            technician.specialization ?? 'General service',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                        IconButton(
-                          tooltip: technician.isActive
-                              ? 'Deactivate technician'
-                              : 'Technician inactive',
-                          onPressed: technician.isActive
-                              ? () {
-                                  onDeactivate(technician);
-                                }
-                              : null,
-                          color: AppColors.danger,
-                          icon: const Icon(Icons.person_off_outlined),
+                      ),
+                      DataCell(
+                        Text(
+                          '${technician.experienceYears} '
+                          '${technician.experienceYears == 1 ? 'year' : 'years'}',
                         ),
-                      ],
+                      ),
+                      DataCell(
+                        _AccountBadge(isLinked: technician.userId != null),
+                      ),
+                      DataCell(
+                        _TechnicianStatusBadge(status: technician.status),
+                      ),
+                      DataCell(Text(_formatDate(technician.createdAt))),
+                      DataCell(
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              tooltip: 'View technician',
+                              onPressed: () {
+                                onView(technician);
+                              },
+                              icon: const Icon(Icons.visibility_outlined),
+                            ),
+                            if (canManage) ...[
+                              IconButton(
+                                tooltip: 'Edit technician',
+                                onPressed: () {
+                                  onEdit(technician);
+                                },
+                                icon: const Icon(Icons.edit_outlined),
+                              ),
+                              IconButton(
+                                tooltip: technician.isActive
+                                    ? 'Deactivate technician'
+                                    : 'Technician inactive',
+                                onPressed: technician.isActive
+                                    ? () {
+                                        onDeactivate(technician);
+                                      }
+                                    : null,
+                                color: AppColors.danger,
+                                icon: const Icon(Icons.person_off_outlined),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
                     ],
-                  ),
-                ),
-              ],
-            );
-          }).toList(),
-        ),
+                  );
+                }).toList(),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -1634,11 +1636,6 @@ class _TechniciansError extends StatelessWidget {
       ),
     );
   }
-}
-
-String _normalizeRole(String? role) {
-  return role?.trim().toUpperCase().replaceAll('-', '_').replaceAll(' ', '_') ??
-      '';
 }
 
 String _initials(String fullName) {

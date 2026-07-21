@@ -195,10 +195,11 @@ class _CustomerFormDialogState extends State<CustomerFormDialog> {
                   keyboardType: TextInputType.phone,
                   inputFormatters: [
                     FilteringTextInputFormatter.digitsOnly,
-                    LengthLimitingTextInputFormatter(15),
+                    LengthLimitingTextInputFormatter(10),
                   ],
                   decoration: const InputDecoration(
                     labelText: 'Mobile number',
+                    prefixText: '+91 ',
                     prefixIcon: Icon(Icons.phone_outlined),
                   ),
                   validator: _validateMobile,
@@ -209,10 +210,11 @@ class _CustomerFormDialogState extends State<CustomerFormDialog> {
                   keyboardType: TextInputType.phone,
                   inputFormatters: [
                     FilteringTextInputFormatter.digitsOnly,
-                    LengthLimitingTextInputFormatter(15),
+                    LengthLimitingTextInputFormatter(10),
                   ],
                   decoration: const InputDecoration(
                     labelText: 'Alternate mobile',
+                    prefixText: '+91 ',
                     prefixIcon: Icon(Icons.phone_android_rounded),
                   ),
                   validator: (value) {
@@ -412,8 +414,8 @@ class _CustomerFormDialogState extends State<CustomerFormDialog> {
       return 'Mobile number is required.';
     }
 
-    if (!RegExp(r'^\d{10,15}$').hasMatch(mobile)) {
-      return 'Enter a 10 to 15 digit mobile number.';
+    if (!RegExp(r'^\d{10}$').hasMatch(mobile)) {
+      return 'Enter a 10 digit mobile number.';
     }
 
     return null;

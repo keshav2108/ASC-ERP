@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/auth/app_permissions.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../auth/data/auth_provider.dart';
 import '../../customers/presentation/customers_screen.dart';
 import '../../dashboard/presentation/dashboard_screen.dart';
 import '../../service_requests/presentation/service_requests_screen.dart';
 import '../../job_cards/presentation/job_cards_screen.dart';
+import '../../inventory/presentation/inventory_screen.dart';
+import '../../invoices/presentation/invoices_screen.dart';
+import '../../payments/presentation/payments_screen.dart';
 import '../../technicians/presentation/technicians_screen.dart';
 
 class AppShell extends ConsumerStatefulWidget {
@@ -24,69 +28,54 @@ class _AppShellState extends ConsumerState<AppShell> {
       label: 'Dashboard',
       icon: Icons.dashboard_rounded,
       page: DashboardScreen(),
-      allowedRoles: {'ADMIN', 'SERVICE_MANAGER', 'ACCOUNTANT'},
+      allowedRoles: AppPermissions.dashboardRoles,
     ),
     _MenuItem(
       label: 'Customers',
       icon: Icons.people_alt_rounded,
       page: CustomersScreen(),
-      allowedRoles: {'ADMIN', 'SERVICE_MANAGER', 'SERVICE_EXECUTIVE'},
+      allowedRoles: AppPermissions.customerRoles,
     ),
     _MenuItem(
       label: 'Service Requests',
       icon: Icons.build_circle_rounded,
       page: ServiceRequestsScreen(),
-      allowedRoles: {'ADMIN', 'SERVICE_MANAGER', 'SERVICE_EXECUTIVE'},
+      allowedRoles: AppPermissions.serviceRequestRoles,
     ),
     _MenuItem(
       label: 'Job Cards',
       icon: Icons.assignment_rounded,
       page: JobCardsScreen(),
-      allowedRoles: {
-        'ADMIN',
-        'SERVICE_MANAGER',
-        'SERVICE_EXECUTIVE',
-        'TECHNICIAN',
-      },
+      allowedRoles: AppPermissions.jobCardRoles,
     ),
     _MenuItem(
       label: 'Inventory',
       icon: Icons.inventory_2_rounded,
-      page: _ModulePlaceholder(
-        title: 'Inventory',
-        icon: Icons.inventory_2_rounded,
-      ),
-      allowedRoles: {'ADMIN', 'SERVICE_MANAGER', 'ACCOUNTANT'},
+      page: InventoryScreen(),
+      allowedRoles: AppPermissions.inventoryRoles,
     ),
     _MenuItem(
       label: 'Invoices',
       icon: Icons.receipt_long_rounded,
-      page: _ModulePlaceholder(
-        title: 'Invoices',
-        icon: Icons.receipt_long_rounded,
-      ),
-      allowedRoles: {'ADMIN', 'ACCOUNTANT'},
+      page: InvoicesScreen(),
+      allowedRoles: AppPermissions.invoiceRoles,
     ),
     _MenuItem(
       label: 'Payments',
       icon: Icons.payments_rounded,
-      page: _ModulePlaceholder(title: 'Payments', icon: Icons.payments_rounded),
-      allowedRoles: {'ADMIN', 'ACCOUNTANT'},
+      page: PaymentsScreen(),
+      allowedRoles: AppPermissions.paymentRoles,
     ),
     _MenuItem(
       label: 'Technicians',
       icon: Icons.engineering_rounded,
       page: TechniciansScreen(),
-      allowedRoles: {'ADMIN', 'SERVICE_MANAGER', 'TECHNICIAN'},
+      allowedRoles: AppPermissions.technicianRoles,
     ),
   ];
 
   List<_MenuItem> _menuItemsForRole(String role) {
-    final normalizedRole = role
-        .trim()
-        .toUpperCase()
-        .replaceAll('-', '_')
-        .replaceAll(' ', '_');
+    final normalizedRole = AppRoles.normalize(role);
 
     final allowedItems = _allMenuItems
         .where((item) => item.allowedRoles.contains(normalizedRole))
@@ -663,50 +652,6 @@ class _LogoutButtonState extends State<_LogoutButton> {
                 ],
               ),
             ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ModulePlaceholder extends StatelessWidget {
-  const _ModulePlaceholder({required this.title, required this.icon});
-
-  final String title;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 42),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 72,
-                height: 72,
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Icon(icon, color: AppColors.primary, size: 36),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                title,
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'This module will be connected next.',
-                style: TextStyle(color: AppColors.textSecondary),
-              ),
-            ],
           ),
         ),
       ),

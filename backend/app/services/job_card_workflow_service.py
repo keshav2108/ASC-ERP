@@ -79,6 +79,16 @@ def change_job_card_status(
     job_card.status = job_status
     job_card.service_request.status = service_status
 
+    if current_status in {
+        "COMPLETED",
+        "READY_FOR_DELIVERY",
+    } and normalized_new_status in {
+        "DIAGNOSIS",
+        "REPAIR_IN_PROGRESS",
+        "TESTING",
+    }:
+        job_card.completed_at = None
+
     if normalized_new_status in {
         "ACCEPTED",
         "DIAGNOSIS",

@@ -1,6 +1,10 @@
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.constants.job_card_statuses import (
+    ACTIVE_JOB_STATUSES,
+)
+from app.models.job_card import JobCard
 from app.models.technician import Technician
 from app.models.user import User
 from app.schemas.technician import (
@@ -10,6 +14,48 @@ from app.schemas.technician import (
 from app.utils.technician_code_generator import (
     generate_technician_code,
 )
+
+
+def _normalized_status(value) -> str:
+    return str(value or "").strip().upper()
+
+
+def _ensure_no_active_job_cards(
+    db: Session,
+    technician: Technician,
+) -> None:
+    active_job_count = (
+        db.query(JobCard.id)
+        .filter(
+            JobCard.technician_id == technician.id,
+            JobCard.status.in_(ACTIVE_JOB_STATUSES),
+        )
+        .count()
+    )
+
+    if active_job_count == 0:
+        return
+
+    job_label = (
+        "job card"
+        if active_job_count == 1
+        else "job cards"
+    )
+
+    verb = (
+        "is"
+        if active_job_count == 1
+        else "are"
+    )
+
+    raise HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail=(
+            f"{technician.full_name} cannot be "
+            f"deactivated while {active_job_count} active "
+            f"{job_label} {verb} assigned."
+        ),
+    )
 
 
 def get_technician_by_id(
@@ -138,6 +184,20 @@ def update_technician(
         exclude_unset=True
     )
 
+    requested_status = update_data.get("status")
+
+    if (
+        requested_status is not None
+        and _normalized_status(requested_status)
+        == "INACTIVE"
+        and _normalized_status(technician.status)
+        != "INACTIVE"
+    ):
+        _ensure_no_active_job_cards(
+            db,
+            technician,
+        )
+
     if "mobile" in update_data:
 
         existing_mobile = (
@@ -215,6 +275,20 @@ def deactivate_technician(
     technician = get_technician_by_id(
         db,
         technician_id,
+    )
+
+    if (
+        _normalized_status(technician.status)
+        == "INACTIVE"
+    ):
+        return {
+            "message": "Technician is already inactive",
+            "technician_code": technician.technician_code,
+        }
+
+    _ensure_no_active_job_cards(
+        db,
+        technician,
     )
 
     technician.status = "INACTIVE"

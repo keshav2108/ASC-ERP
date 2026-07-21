@@ -17,10 +17,24 @@ class TechnicianNotifier extends AsyncNotifier<List<Technician>> {
     return _service.getTechnicians();
   }
 
-  Future<void> refreshTechnicians() async {
-    state = const AsyncLoading();
+  Future<void> refreshTechnicians({bool showLoading = true}) async {
+    final previousState = state;
 
-    state = await AsyncValue.guard(_service.getTechnicians);
+    if (showLoading) {
+      state = const AsyncLoading();
+    }
+
+    final refreshedState = await AsyncValue.guard(_service.getTechnicians);
+
+    if (!showLoading && refreshedState.hasError && previousState.hasValue) {
+      return;
+    }
+
+    state = refreshedState;
+  }
+
+  Future<void> refreshTechniciansSilently() {
+    return refreshTechnicians(showLoading: false);
   }
 
   Future<Technician> addTechnician(TechnicianCreateInput input) async {

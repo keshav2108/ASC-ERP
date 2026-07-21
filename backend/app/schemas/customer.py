@@ -1,15 +1,24 @@
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 
 class CustomerCreate(BaseModel):
 
     full_name: str
 
-    mobile: str
+    mobile: str = Field(
+        min_length=10,
+        max_length=10,
+        pattern=r"^\d{10}$",
+    )
 
-    alternate_mobile: str | None = None
+    alternate_mobile: str | None = Field(
+        default=None,
+        min_length=10,
+        max_length=10,
+        pattern=r"^\d{10}$",
+    )
 
     email: EmailStr | None = None
 

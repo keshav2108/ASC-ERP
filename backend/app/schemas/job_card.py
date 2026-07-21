@@ -58,6 +58,17 @@ class TechnicianSummary(BaseModel):
     }
 
 
+class JobCustomerSummary(BaseModel):
+    id: int
+    customer_code: str
+    full_name: str
+    mobile: str
+
+    model_config = {
+        "from_attributes": True,
+    }
+
+
 class JobServiceRequestSummary(BaseModel):
     id: int
     request_code: str
@@ -65,6 +76,8 @@ class JobServiceRequestSummary(BaseModel):
     complaint_description: str
     priority: str
     status: str
+
+    customer: JobCustomerSummary
 
     model_config = {
         "from_attributes": True,
@@ -90,6 +103,11 @@ class JobCardResponse(BaseModel):
 
     delivered_at: datetime | None
     delivered_to: str | None
+
+    recipient_type: str | None
+    receiver_name: str | None
+    relation_to_customer: str | None
+
     delivery_remarks: str | None
 
     created_at: datetime

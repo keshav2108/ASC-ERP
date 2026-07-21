@@ -16,7 +16,8 @@ class TechnicianCreate(BaseModel):
 
     mobile: str = Field(
         min_length=10,
-        max_length=15,
+        max_length=10,
+        pattern=r"^\d{10}$",
     )
 
     specialization: str | None = Field(
@@ -46,7 +47,8 @@ class TechnicianUpdate(BaseModel):
     mobile: str | None = Field(
         default=None,
         min_length=10,
-        max_length=15,
+        max_length=10,
+        pattern=r"^\d{10}$",
     )
 
     specialization: str | None = Field(

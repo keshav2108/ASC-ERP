@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/auth/app_permissions.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../auth/data/auth_provider.dart';
 import '../data/job_card_model.dart';
 import '../data/job_card_provider.dart';
+import 'add_spare_part_dialog.dart';
 
 class JobCardWorkflowDialog extends ConsumerStatefulWidget {
   const JobCardWorkflowDialog({required this.jobCard, super.key});
@@ -23,33 +25,31 @@ class _JobCardWorkflowDialogState extends ConsumerState<JobCardWorkflowDialog> {
   String? _errorMessage;
 
   static const Set<String> _technicianAllowedTargets = <String>{
-    'ACCEPTED',
     'DIAGNOSIS',
-    'WAITING_PARTS',
     'REPAIR_IN_PROGRESS',
     'TESTING',
     'COMPLETED',
   };
 
   String get _currentUserRole {
-    final role = ref
-        .read(authProvider)
-        .user?['role']
-        ?.toString()
-        .trim()
-        .toUpperCase()
-        .replaceAll('-', '_')
-        .replaceAll(' ', '_');
-
-    return role ?? '';
+    return AppRoles.fromUser(ref.read(authProvider).user);
   }
 
   bool get _canManageWorkflow {
-    return _currentUserRole == 'ADMIN' || _currentUserRole == 'SERVICE_MANAGER';
+    return AppPermissions.canManageJobCards(_currentUserRole);
   }
 
   bool get _isTechnician {
-    return _currentUserRole == 'TECHNICIAN';
+    return AppPermissions.isTechnician(_currentUserRole);
+  }
+
+  bool get _canAddSparePart {
+    final currentStatus = _normalizeStatus(_jobCard.status);
+
+    final hasTechnicalAccess = _canManageWorkflow || _isTechnician;
+
+    return hasTechnicalAccess &&
+        <String>{'DIAGNOSIS', 'REPAIR_IN_PROGRESS'}.contains(currentStatus);
   }
 
   bool _canRunTransitionTo(String targetStatus) {
@@ -102,53 +102,61 @@ class _JobCardWorkflowDialogState extends ConsumerState<JobCardWorkflowDialog> {
       return;
     }
 
+    if (_normalizeStatus(_jobCard.status) == 'DELIVERED' &&
+        targetStatus == 'READY_FOR_DELIVERY') {
+      await _reopenDeliveredJobCard();
+      return;
+    }
+
     if (targetStatus == 'DELIVERED') {
       await _openDeliveryDialog();
+
       return;
     }
 
-    final isCancellation = targetStatus == 'CANCELLED';
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text(
-            isCancellation ? 'Cancel job card?' : _transitionLabel(transition),
-          ),
-          content: Text(
-            isCancellation
-                ? '${_jobCard.jobCode} will be '
-                      'cancelled. This action cannot '
-                      'be reversed through the workflow.'
-                : 'Move ${_jobCard.jobCode} from '
-                      '${_formatStatus(_jobCard.status)} '
-                      'to ${_formatStatus(targetStatus)}?',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop(false);
-              },
-              child: const Text('Go Back'),
+    if (targetStatus == 'CANCELLED') {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            icon: const Icon(Icons.cancel_outlined, color: AppColors.danger),
+            title: const Text('Cancel job card?'),
+            content: Text(
+              '${_jobCard.jobCode} will be cancelled. '
+              'This action cannot be reversed through '
+              'the workflow.',
             ),
-            FilledButton(
-              style: isCancellation
-                  ? FilledButton.styleFrom(backgroundColor: AppColors.danger)
-                  : null,
-              onPressed: () {
-                Navigator.of(context).pop(true);
-              },
-              child: Text(isCancellation ? 'Cancel Job' : 'Confirm'),
-            ),
-          ],
-        );
-      },
-    );
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop(false);
+                },
+                child: const Text('Go Back'),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.danger,
+                ),
+                onPressed: () {
+                  Navigator.of(context).pop(true);
+                },
+                child: const Text('Cancel Job'),
+              ),
+            ],
+          );
+        },
+      );
 
-    if (confirmed != true || !mounted) {
-      return;
+      if (confirmed != true || !mounted) {
+        return;
+      }
     }
+
+    await _executeTransition(targetStatus);
+  }
+
+  Future<void> _executeTransition(String targetStatus) async {
+    final isProblemSolved = targetStatus == 'COMPLETED';
 
     setState(() {
       _isUpdating = true;
@@ -169,8 +177,65 @@ class _JobCardWorkflowDialogState extends ConsumerState<JobCardWorkflowDialog> {
       });
 
       _showMessage(
-        '${updatedJobCard.jobCode} moved to '
-        '${_formatStatus(updatedJobCard.status)}.',
+        isProblemSolved
+            ? 'Problem solved. '
+                  '${updatedJobCard.jobCode} and '
+                  '${updatedJobCard.serviceRequest.requestCode} '
+                  'are now Completed.'
+            : '${updatedJobCard.jobCode} moved to '
+                  '${_formatStatus(updatedJobCard.status)}.',
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _errorMessage = _cleanError(error);
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUpdating = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _reopenDeliveredJobCard() async {
+    if (_isUpdating) {
+      return;
+    }
+
+    if (!_canManageWorkflow) {
+      _showPermissionError(
+        'Only Admin or Service Manager can reverse '
+        'a delivered product.',
+      );
+      return;
+    }
+
+    setState(() {
+      _isUpdating = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final reopenedJobCard = await ref
+          .read(jobCardProvider.notifier)
+          .reopenDeliveredJobCard(_jobCard.id);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _jobCard = reopenedJobCard;
+      });
+
+      _showMessage(
+        '${reopenedJobCard.jobCode} moved back to '
+        'Ready for Delivery.',
       );
     } catch (error) {
       if (!mounted) {
@@ -218,6 +283,41 @@ class _JobCardWorkflowDialogState extends ConsumerState<JobCardWorkflowDialog> {
     _showMessage('${deliveredJobCard.jobCode} delivered successfully.');
   }
 
+  Future<void> _openAddSparePartDialog() async {
+    if (_isUpdating) {
+      return;
+    }
+
+    if (!_canAddSparePart) {
+      _showPermissionError(
+        'Spare parts can only be added during '
+        'Diagnosis or Repair In Progress.',
+      );
+
+      return;
+    }
+
+    final partAdded = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AddSparePartDialog(
+          jobCardId: _jobCard.id,
+          jobCardCode: _jobCard.jobCode,
+        );
+      },
+    );
+
+    if (partAdded != true || !mounted) {
+      return;
+    }
+
+    _showMessage(
+      'Spare-part usage updated for '
+      '${_jobCard.jobCode}.',
+    );
+  }
+
   void _showMessage(String message) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
@@ -246,6 +346,10 @@ class _JobCardWorkflowDialogState extends ConsumerState<JobCardWorkflowDialog> {
               _buildJobSummary(),
               const SizedBox(height: 22),
               _buildCurrentStage(),
+              if (_canAddSparePart) ...[
+                const SizedBox(height: 18),
+                _buildSparePartAction(),
+              ],
               if (_errorMessage != null) ...[
                 const SizedBox(height: 20),
                 _WorkflowErrorBox(message: _errorMessage!),
@@ -425,10 +529,71 @@ class _JobCardWorkflowDialogState extends ConsumerState<JobCardWorkflowDialog> {
     );
   }
 
+  Widget _buildSparePartAction() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.18)),
+      ),
+      child: Wrap(
+        spacing: 16,
+        runSpacing: 14,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        alignment: WrapAlignment.spaceBetween,
+        children: [
+          const SizedBox(
+            width: 410,
+            child: Row(
+              children: [
+                Icon(
+                  Icons.build_circle_outlined,
+                  color: AppColors.primary,
+                  size: 30,
+                ),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Spare Parts Used',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15,
+                        ),
+                      ),
+                      SizedBox(height: 3),
+                      Text(
+                        'Add parts used during diagnosis or repair. '
+                        'They will automatically appear on the invoice.',
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          FilledButton.tonalIcon(
+            onPressed: _isUpdating ? null : _openAddSparePartDialog,
+            icon: const Icon(Icons.add_circle_outline_rounded),
+            label: const Text('Add Spare Part'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildTransitionContent(
     AsyncValue<List<WorkflowTransition>> transitionsState,
   ) {
-    if (_jobCard.isClosed) {
+    if (_jobCard.isCancelled) {
       return const _NoWorkflowActions(
         icon: Icons.lock_outline_rounded,
         message: 'This job card is closed and has no further actions.',
@@ -440,6 +605,11 @@ class _JobCardWorkflowDialogState extends ConsumerState<JobCardWorkflowDialog> {
         final visibleTransitions = transitions
             .where((transition) {
               final targetStatus = _normalizeStatus(transition.toStatus);
+
+              if (targetStatus == 'ACCEPTED' ||
+                  targetStatus == 'WAITING_PARTS') {
+                return false;
+              }
 
               return _canRunTransitionTo(targetStatus);
             })
@@ -470,10 +640,12 @@ class _JobCardWorkflowDialogState extends ConsumerState<JobCardWorkflowDialog> {
 
             final isDelivery = targetStatus == 'DELIVERED';
 
+            final isProblemSolved = targetStatus == 'COMPLETED';
+
             return FilledButton.icon(
               style: isCancellation
                   ? FilledButton.styleFrom(backgroundColor: AppColors.danger)
-                  : isDelivery
+                  : isDelivery || isProblemSolved
                   ? FilledButton.styleFrom(backgroundColor: AppColors.success)
                   : null,
               onPressed: _isUpdating
@@ -546,18 +718,56 @@ class _JobCardDeliveryDialog extends ConsumerStatefulWidget {
 
 class _JobCardDeliveryDialogState
     extends ConsumerState<_JobCardDeliveryDialog> {
+  static const List<String> _relationChoices = [
+    'Father',
+    'Mother',
+    'Husband',
+    'Wife',
+    'Son',
+    'Daughter',
+    'Brother',
+    'Sister',
+    'Employee',
+    'Neighbour',
+    'Other',
+  ];
+
   final _formKey = GlobalKey<FormState>();
 
-  final _deliveredToController = TextEditingController();
+  final _receiverNameController = TextEditingController();
+
+  final _customRelationController = TextEditingController();
 
   final _remarksController = TextEditingController();
+
+  String _recipientType = 'CUSTOMER';
+  String? _selectedRelation;
 
   bool _isSaving = false;
   String? _errorMessage;
 
+  bool get _isCustomerRecipient => _recipientType == 'CUSTOMER';
+
+  String get _customerName => widget.jobCard.serviceRequest.customer.fullName;
+
+  String get _customerMobile => widget.jobCard.serviceRequest.customer.mobile;
+
+  String? get _effectiveRelation {
+    if (_isCustomerRecipient) {
+      return null;
+    }
+
+    if (_selectedRelation == 'Other') {
+      return _customRelationController.text.trim();
+    }
+
+    return _selectedRelation;
+  }
+
   @override
   void dispose() {
-    _deliveredToController.dispose();
+    _receiverNameController.dispose();
+    _customRelationController.dispose();
     _remarksController.dispose();
     super.dispose();
   }
@@ -580,7 +790,13 @@ class _JobCardDeliveryDialogState
           .deliverJobCard(
             widget.jobCard.id,
             JobCardDeliveryInput(
-              deliveredTo: _deliveredToController.text,
+              recipientType: _recipientType,
+              receiverName: _isCustomerRecipient
+                  ? null
+                  : _receiverNameController.text,
+              relationToCustomer: _isCustomerRecipient
+                  ? null
+                  : _effectiveRelation,
               deliveryRemarks: _remarksController.text,
             ),
           );
@@ -613,7 +829,7 @@ class _JobCardDeliveryDialogState
         ],
       ),
       content: SizedBox(
-        width: 520,
+        width: 560,
         child: Form(
           key: _formKey,
           child: SingleChildScrollView(
@@ -629,32 +845,50 @@ class _JobCardDeliveryDialogState
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                const SizedBox(height: 20),
-                TextFormField(
-                  controller: _deliveredToController,
-                  enabled: !_isSaving,
-                  textCapitalization: TextCapitalization.words,
-                  maxLength: 100,
-                  decoration: const InputDecoration(
-                    labelText: 'Delivered to',
-                    hintText: 'Customer or receiver name',
-                    prefixIcon: Icon(Icons.person_outline_rounded),
-                  ),
-                  validator: (value) {
-                    final receiver = value?.trim() ?? '';
-
-                    if (receiver.isEmpty) {
-                      return 'Enter receiver name.';
-                    }
-
-                    if (receiver.length < 2) {
-                      return 'Enter at least 2 characters.';
-                    }
-
-                    return null;
-                  },
+                const SizedBox(height: 22),
+                const Text(
+                  'Who is receiving the product?',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: SegmentedButton<String>(
+                    segments: const [
+                      ButtonSegment<String>(
+                        value: 'CUSTOMER',
+                        icon: Icon(Icons.person_rounded),
+                        label: Text('Customer'),
+                      ),
+                      ButtonSegment<String>(
+                        value: 'OTHER',
+                        icon: Icon(Icons.group_outlined),
+                        label: Text('Other Person'),
+                      ),
+                    ],
+                    selected: {_recipientType},
+                    onSelectionChanged: _isSaving
+                        ? null
+                        : (selection) {
+                            if (selection.isEmpty) {
+                              return;
+                            }
+
+                            setState(() {
+                              _recipientType = selection.first;
+                              _errorMessage = null;
+                            });
+                          },
+                  ),
+                ),
+                const SizedBox(height: 18),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 220),
+                  child: _isCustomerRecipient
+                      ? _buildCustomerRecipient()
+                      : _buildOtherRecipient(),
+                ),
+                const SizedBox(height: 18),
                 TextFormField(
                   controller: _remarksController,
                   enabled: !_isSaving,
@@ -701,6 +935,185 @@ class _JobCardDeliveryDialogState
                 )
               : const Icon(Icons.check_circle_outline),
           label: Text(_isSaving ? 'Delivering...' : 'Confirm Delivery'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCustomerRecipient() {
+    return Container(
+      key: const ValueKey('customer-recipient'),
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.success.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.success.withValues(alpha: 0.24)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: AppColors.success.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(Icons.person_rounded, color: AppColors.success),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _customerName,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _customerMobile,
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.success.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text(
+                    'Relation: Customer / Self',
+                    style: TextStyle(
+                      color: AppColors.success,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOtherRecipient() {
+    return Column(
+      key: const ValueKey('other-recipient'),
+      children: [
+        TextFormField(
+          controller: _receiverNameController,
+          enabled: !_isSaving,
+          textCapitalization: TextCapitalization.words,
+          maxLength: 100,
+          decoration: const InputDecoration(
+            labelText: 'Receiver name *',
+            hintText: 'Enter person receiving the product',
+            prefixIcon: Icon(Icons.person_outline_rounded),
+          ),
+          validator: (value) {
+            if (_isCustomerRecipient) {
+              return null;
+            }
+
+            final receiver = value?.trim() ?? '';
+
+            if (receiver.isEmpty) {
+              return 'Enter receiver name.';
+            }
+
+            if (receiver.length < 2) {
+              return 'Enter at least 2 characters.';
+            }
+
+            return null;
+          },
+        ),
+        const SizedBox(height: 12),
+        DropdownButtonFormField<String>(
+          initialValue: _selectedRelation,
+          isExpanded: true,
+          decoration: const InputDecoration(
+            labelText: 'Relation to customer *',
+            prefixIcon: Icon(Icons.family_restroom_rounded),
+          ),
+          hint: const Text('Select relation'),
+          items: _relationChoices
+              .map(
+                (relation) => DropdownMenuItem<String>(
+                  value: relation,
+                  child: Text(relation),
+                ),
+              )
+              .toList(growable: false),
+          onChanged: _isSaving
+              ? null
+              : (value) {
+                  setState(() {
+                    _selectedRelation = value;
+                  });
+                },
+          validator: (value) {
+            if (_isCustomerRecipient) {
+              return null;
+            }
+
+            if (value == null || value.trim().isEmpty) {
+              return 'Select relation to customer.';
+            }
+
+            return null;
+          },
+        ),
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 180),
+          child: _selectedRelation == 'Other'
+              ? Padding(
+                  key: const ValueKey('custom-relation'),
+                  padding: const EdgeInsets.only(top: 12),
+                  child: TextFormField(
+                    controller: _customRelationController,
+                    enabled: !_isSaving,
+                    textCapitalization: TextCapitalization.words,
+                    maxLength: 100,
+                    decoration: const InputDecoration(
+                      labelText: 'Specify relation *',
+                      hintText: 'Enter relationship',
+                      prefixIcon: Icon(Icons.edit_outlined),
+                    ),
+                    validator: (value) {
+                      if (_isCustomerRecipient ||
+                          _selectedRelation != 'Other') {
+                        return null;
+                      }
+
+                      final relation = value?.trim() ?? '';
+
+                      if (relation.isEmpty) {
+                        return 'Enter relation.';
+                      }
+
+                      if (relation.length < 2) {
+                        return 'Enter at least 2 characters.';
+                      }
+
+                      return null;
+                    },
+                  ),
+                )
+              : const SizedBox.shrink(key: ValueKey('no-custom-relation')),
         ),
       ],
     );
@@ -807,6 +1220,12 @@ class _WorkflowErrorBox extends StatelessWidget {
 }
 
 String _transitionLabel(WorkflowTransition transition) {
+  final targetStatus = _normalizeStatus(transition.toStatus);
+
+  if (targetStatus == 'COMPLETED') {
+    return 'Mark Problem Solved';
+  }
+
   final action = transition.action.trim();
 
   if (action.isNotEmpty) {

@@ -7,6 +7,11 @@ import '../../technicians/data/technician_provider.dart';
 import '../data/job_card_model.dart';
 import '../data/job_card_provider.dart';
 
+final jobCardEditTechniciansProvider =
+    FutureProvider.autoDispose<List<Technician>>((ref) {
+      return ref.read(technicianServiceProvider).getTechnicians();
+    });
+
 class JobCardEditDialog extends ConsumerStatefulWidget {
   const JobCardEditDialog({required this.jobCard, super.key});
 
@@ -33,6 +38,14 @@ class _JobCardEditDialogState extends ConsumerState<JobCardEditDialog> {
   @override
   void initState() {
     super.initState();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+
+      ref.invalidate(jobCardEditTechniciansProvider);
+    });
 
     _selectedTechnicianId = widget.jobCard.technicianId;
 
@@ -120,7 +133,7 @@ class _JobCardEditDialogState extends ConsumerState<JobCardEditDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final techniciansState = ref.watch(technicianProvider);
+    final techniciansState = ref.watch(jobCardEditTechniciansProvider);
 
     return Dialog(
       insetPadding: const EdgeInsets.all(18),
@@ -305,7 +318,7 @@ class _JobCardEditDialogState extends ConsumerState<JobCardEditDialog> {
       data: (technicians) {
         final selectableTechnicians =
             technicians.where((technician) {
-              return technician.isAvailable ||
+              return technician.isActive ||
                   technician.id == widget.jobCard.technicianId;
             }).toList()..sort(
               (first, second) => first.fullName.toLowerCase().compareTo(
@@ -386,7 +399,7 @@ class _JobCardEditDialogState extends ConsumerState<JobCardEditDialog> {
             suffixIcon: IconButton(
               tooltip: 'Retry',
               onPressed: () {
-                ref.invalidate(technicianProvider);
+                ref.invalidate(jobCardEditTechniciansProvider);
               },
               icon: const Icon(Icons.refresh_rounded),
             ),

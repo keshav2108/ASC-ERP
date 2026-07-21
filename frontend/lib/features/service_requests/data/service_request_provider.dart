@@ -1,4 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../customers/data/customer_provider.dart';
+import '../../dashboard/data/dashboard_provider.dart';
 
 import 'service_request_model.dart';
 import 'service_request_service.dart';
@@ -17,10 +22,24 @@ class ServiceRequestNotifier extends AsyncNotifier<List<ServiceRequest>> {
     return _service.getServiceRequests();
   }
 
-  Future<void> refreshRequests() async {
-    state = const AsyncLoading();
+  Future<void> refreshRequests({bool showLoading = true}) async {
+    final previousState = state;
 
-    state = await AsyncValue.guard(_service.getServiceRequests);
+    if (showLoading) {
+      state = const AsyncLoading();
+    }
+
+    final refreshedState = await AsyncValue.guard(_service.getServiceRequests);
+
+    if (!showLoading && refreshedState.hasError && previousState.hasValue) {
+      return;
+    }
+
+    state = refreshedState;
+  }
+
+  Future<void> refreshRequestsSilently() {
+    return refreshRequests(showLoading: false);
   }
 
   Future<ServiceRequest> addRequest(ServiceRequestCreateInput input) async {
@@ -29,6 +48,23 @@ class ServiceRequestNotifier extends AsyncNotifier<List<ServiceRequest>> {
     final existingRequests = state.value ?? <ServiceRequest>[];
 
     state = AsyncData([createdRequest, ...existingRequests]);
+
+    return createdRequest;
+  }
+
+  Future<ServiceRequest> registerComplaint(RegisterComplaintInput input) async {
+    final createdRequest = await _service.registerComplaint(input);
+
+    final existingRequests = state.value ?? <ServiceRequest>[];
+
+    state = AsyncData([
+      createdRequest,
+      ...existingRequests.where((request) => request.id != createdRequest.id),
+    ]);
+
+    unawaited(ref.read(customerProvider.notifier).refreshCustomersSilently());
+    ref.invalidate(customerProductsProvider);
+    unawaited(ref.read(dashboardProvider.notifier).refreshDashboardSilently());
 
     return createdRequest;
   }

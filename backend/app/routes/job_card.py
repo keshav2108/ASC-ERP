@@ -18,12 +18,17 @@ from app.schemas.job_card import (
     JobCardResponse,
     JobCardUpdate,
 )
+from app.schemas.stock_transaction import (
+    StockIssueCreate,
+    StockTransactionResponse,
+)
 from app.services.job_card_service import (
     get_job_card_by_id,
     get_job_cards,
     get_technician_job_cards,
     update_job_card,
 )
+from app.services.inventory_service import issue_stock_to_job_card
 from app.services.job_card_workflow_service import (
     change_job_card_status,
 )
@@ -389,6 +394,57 @@ def complete_job(
         db,
         job_card_id,
         "COMPLETED",
+    )
+
+
+@router.post(
+    "/{job_card_id}/spare-parts",
+    response_model=StockTransactionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def add_spare_part_to_job_card(
+    job_card_id: int,
+    issue_data: StockIssueCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        job_card_technical_access
+    ),
+):
+    job_card = get_job_card_by_id(
+        db,
+        job_card_id,
+    )
+
+    validate_job_card_access(
+        db,
+        current_user,
+        job_card,
+    )
+
+    if issue_data.job_card_id != job_card_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Job Card ID in the request does not "
+                "match the Job Card in the URL"
+            ),
+        )
+
+    if job_card.status not in {
+        "DIAGNOSIS",
+        "REPAIR_IN_PROGRESS",
+    }:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Spare parts can only be added during "
+                "diagnosis or repair"
+            ),
+        )
+
+    return issue_stock_to_job_card(
+        db,
+        issue_data,
     )
 
 

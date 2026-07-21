@@ -188,6 +188,119 @@ class ServiceRequestCreateInput {
   }
 }
 
+class ComplaintCustomerInput {
+  const ComplaintCustomerInput({
+    required this.fullName,
+    required this.mobile,
+    this.alternateMobile,
+    this.email,
+    this.address,
+    this.city,
+    this.pincode,
+  });
+
+  final String fullName;
+  final String mobile;
+  final String? alternateMobile;
+  final String? email;
+  final String? address;
+  final String? city;
+  final String? pincode;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'full_name': fullName.trim(),
+      'mobile': mobile.trim(),
+      'alternate_mobile': _emptyToNull(alternateMobile),
+      'email': _emptyToNull(email),
+      'address': _emptyToNull(address),
+      'city': _emptyToNull(city),
+      'pincode': _emptyToNull(pincode),
+    };
+  }
+}
+
+class ComplaintProductInput {
+  const ComplaintProductInput({
+    required this.brand,
+    required this.productName,
+    this.customerProductId,
+    this.modelNumber,
+    this.serialNumber,
+    this.purchaseDate,
+    this.warrantyStatus = 'OUT',
+  });
+
+  final int? customerProductId;
+  final String brand;
+  final String productName;
+  final String? modelNumber;
+  final String? serialNumber;
+  final DateTime? purchaseDate;
+  final String warrantyStatus;
+
+  Map<String, dynamic> toJson() {
+    return {
+      if (customerProductId != null) 'customer_product_id': customerProductId,
+      'brand': brand.trim(),
+      'product_name': productName.trim(),
+      'model_number': _emptyToNull(modelNumber),
+      'serial_number': _emptyToNull(serialNumber),
+      'purchase_date': purchaseDate?.toIso8601String(),
+      'warranty_status': warrantyStatus.trim().toUpperCase(),
+    };
+  }
+}
+
+class ComplaintDetailsInput {
+  const ComplaintDetailsInput({
+    required this.complaintCategory,
+    required this.complaintDescription,
+    required this.productCondition,
+    required this.priority,
+    this.receivedAccessories,
+    this.estimatedDelivery,
+  });
+
+  final String complaintCategory;
+  final String complaintDescription;
+  final String? receivedAccessories;
+  final String productCondition;
+  final String priority;
+  final DateTime? estimatedDelivery;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'complaint_category': complaintCategory,
+      'complaint_description': complaintDescription.trim(),
+      'received_accessories': _emptyToNull(receivedAccessories),
+      'product_condition': productCondition,
+      'priority': priority,
+      'estimated_delivery': estimatedDelivery?.toIso8601String(),
+    };
+  }
+}
+
+class RegisterComplaintInput {
+  const RegisterComplaintInput({
+    required this.customer,
+    required this.product,
+    required this.complaint,
+  });
+
+  final ComplaintCustomerInput customer;
+  final ComplaintProductInput product;
+  final ComplaintDetailsInput complaint;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'customer': customer.toJson(),
+      'product': product.toJson(),
+      'complaint': complaint.toJson(),
+    };
+  }
+}
+
 class ServiceRequestUpdateInput {
   const ServiceRequestUpdateInput({
     this.complaintCategory,

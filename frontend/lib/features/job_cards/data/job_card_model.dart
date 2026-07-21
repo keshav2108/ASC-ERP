@@ -13,6 +13,9 @@ class JobCard {
     required this.completedAt,
     required this.deliveredAt,
     required this.deliveredTo,
+    required this.recipientType,
+    required this.receiverName,
+    required this.relationToCustomer,
     required this.deliveryRemarks,
     required this.createdAt,
     required this.technician,
@@ -37,6 +40,11 @@ class JobCard {
 
   final DateTime? deliveredAt;
   final String? deliveredTo;
+
+  final String? recipientType;
+  final String? receiverName;
+  final String? relationToCustomer;
+
   final String? deliveryRemarks;
 
   final DateTime createdAt;
@@ -65,6 +73,9 @@ class JobCard {
       completedAt: _asNullableDate(json['completed_at']),
       deliveredAt: _asNullableDate(json['delivered_at']),
       deliveredTo: _asNullableString(json['delivered_to']),
+      recipientType: _asNullableString(json['recipient_type']),
+      receiverName: _asNullableString(json['receiver_name']),
+      relationToCustomer: _asNullableString(json['relation_to_customer']),
       deliveryRemarks: _asNullableString(json['delivery_remarks']),
       createdAt: _asDate(json['created_at']),
       technician: JobCardTechnician.fromJson(_asMap(json['technician'])),
@@ -112,6 +123,7 @@ class JobCardServiceRequest {
     required this.complaintDescription,
     required this.priority,
     required this.status,
+    required this.customer,
   });
 
   final int id;
@@ -121,6 +133,8 @@ class JobCardServiceRequest {
   final String priority;
   final String status;
 
+  final JobCardCustomer customer;
+
   factory JobCardServiceRequest.fromJson(Map<String, dynamic> json) {
     return JobCardServiceRequest(
       id: _asInt(json['id']),
@@ -129,6 +143,30 @@ class JobCardServiceRequest {
       complaintDescription: _asString(json['complaint_description']),
       priority: _asString(json['priority']),
       status: _asString(json['status']),
+      customer: JobCardCustomer.fromJson(_asMap(json['customer'])),
+    );
+  }
+}
+
+class JobCardCustomer {
+  const JobCardCustomer({
+    required this.id,
+    required this.customerCode,
+    required this.fullName,
+    required this.mobile,
+  });
+
+  final int id;
+  final String customerCode;
+  final String fullName;
+  final String mobile;
+
+  factory JobCardCustomer.fromJson(Map<String, dynamic> json) {
+    return JobCardCustomer(
+      id: _asInt(json['id']),
+      customerCode: _asString(json['customer_code']),
+      fullName: _asString(json['full_name']),
+      mobile: _asString(json['mobile']),
     );
   }
 }
@@ -185,15 +223,25 @@ class TechnicianAssignmentInput {
 }
 
 class JobCardDeliveryInput {
-  const JobCardDeliveryInput({required this.deliveredTo, this.deliveryRemarks});
+  const JobCardDeliveryInput({
+    required this.recipientType,
+    this.receiverName,
+    this.relationToCustomer,
+    this.deliveryRemarks,
+  });
 
-  final String deliveredTo;
+  final String recipientType;
+  final String? receiverName;
+  final String? relationToCustomer;
+
   final String? deliveryRemarks;
 
   Map<String, dynamic> toJson() {
     return {
-      'delivered_to': deliveredTo.trim(),
-      'delivery_remarks': _emptyToNull(deliveryRemarks),
+      'recipient_type': recipientType.trim().toUpperCase(),
+      'receiver_name': _emptyToNull(receiverName),
+      'relation_to_customer': _emptyToNull(relationToCustomer),
+      'remarks': _emptyToNull(deliveryRemarks),
     };
   }
 }

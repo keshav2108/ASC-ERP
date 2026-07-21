@@ -17,6 +17,7 @@ from app.schemas.job_card import (
     TechnicianAssignmentCreate,
 )
 from app.schemas.service_request import (
+    RegisterComplaintCreate,
     ServiceRequestCreate,
     ServiceRequestResponse,
     ServiceRequestUpdate,
@@ -31,6 +32,7 @@ from app.services.service_request_service import (
     get_product_service_requests,
     get_service_request_by_id,
     get_service_requests,
+    register_customer_complaint,
     update_service_request,
 )
 
@@ -66,6 +68,30 @@ def add_service_request(
     db: Session = Depends(get_db),
 ):
     return create_service_request(
+        db,
+        request_data,
+    )
+
+
+@router.post(
+    "/register-complaint",
+    response_model=ServiceRequestResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def register_complaint(
+    request_data: RegisterComplaintCreate,
+    db: Session = Depends(get_db),
+):
+    """
+    Register a customer, product and complaint
+    through one transactional workflow.
+
+    Existing customers are matched by mobile.
+    Existing products may be selected by ID or
+    reused through their serial number.
+    """
+
+    return register_customer_complaint(
         db,
         request_data,
     )

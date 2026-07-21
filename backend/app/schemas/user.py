@@ -51,8 +51,8 @@ class UserCreate(BaseModel):
 
     mobile: str = Field(
         min_length=10,
-        max_length=15,
-        pattern=r"^\+?[0-9]{10,15}$",
+        max_length=10,
+        pattern=r"^\d{10}$",
     )
 
     password: str = Field(
@@ -90,10 +90,7 @@ class UserCreate(BaseModel):
         value: object,
     ) -> object:
         if isinstance(value, str):
-            return value.strip().replace(
-                " ",
-                "",
-            )
+            return value.strip()
 
         return value
 

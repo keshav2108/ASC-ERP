@@ -4,6 +4,9 @@ from decimal import Decimal
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.constants.job_card_statuses import (
+    ACTIVE_JOB_STATUSES,
+)
 from app.models.customer import Customer
 from app.models.invoice import Invoice
 from app.models.job_card import JobCard
@@ -12,16 +15,6 @@ from app.models.service_request import ServiceRequest
 from app.models.spare_part import SparePart
 from app.models.technician import Technician
 from app.utils.timezone import get_current_time
-
-
-ACTIVE_JOB_STATUSES = {
-    "ASSIGNED",
-    "ACCEPTED",
-    "DIAGNOSIS",
-    "WAITING_PARTS",
-    "REPAIR_IN_PROGRESS",
-    "TESTING",
-}
 
 
 def decimal_value(

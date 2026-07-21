@@ -17,10 +17,24 @@ class CustomerNotifier extends AsyncNotifier<List<Customer>> {
     return _service.getCustomers();
   }
 
-  Future<void> refreshCustomers() async {
-    state = const AsyncLoading();
+  Future<void> refreshCustomers({bool showLoading = true}) async {
+    final previousState = state;
 
-    state = await AsyncValue.guard(_service.getCustomers);
+    if (showLoading) {
+      state = const AsyncLoading();
+    }
+
+    final refreshedState = await AsyncValue.guard(_service.getCustomers);
+
+    if (!showLoading && refreshedState.hasError && previousState.hasValue) {
+      return;
+    }
+
+    state = refreshedState;
+  }
+
+  Future<void> refreshCustomersSilently() {
+    return refreshCustomers(showLoading: false);
   }
 
   Future<Customer> addCustomer(CustomerInput input) async {

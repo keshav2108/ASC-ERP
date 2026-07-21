@@ -30,6 +30,19 @@ class ServiceRequestService {
     }
   }
 
+  Future<ServiceRequest> registerComplaint(RegisterComplaintInput input) async {
+    try {
+      final response = await ApiClient.dio.post(
+        '/api/v1/service-requests/register-complaint',
+        data: input.toJson(),
+      );
+
+      return ServiceRequest.fromJson(_asResponseMap(response.data));
+    } on DioException catch (error) {
+      throw ApiException.fromDio(error);
+    }
+  }
+
   Future<ServiceRequest> updateServiceRequest(
     int serviceRequestId,
     ServiceRequestUpdateInput input,

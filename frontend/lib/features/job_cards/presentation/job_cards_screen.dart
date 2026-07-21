@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/auth/app_permissions.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../auth/data/auth_provider.dart';
+import '../../technicians/data/technician_provider.dart';
 import '../data/job_card_model.dart';
 import '../data/job_card_provider.dart';
 import 'job_card_edit_dialog.dart';
@@ -24,24 +26,15 @@ class _JobCardsScreenState extends ConsumerState<JobCardsScreen> {
   int _selectedTechnicianId = 0;
 
   String get _currentUserRole {
-    final role = ref
-        .read(authProvider)
-        .user?['role']
-        ?.toString()
-        .trim()
-        .toUpperCase()
-        .replaceAll('-', '_')
-        .replaceAll(' ', '_');
-
-    return role ?? '';
+    return AppRoles.fromUser(ref.read(authProvider).user);
   }
 
   bool get _canManageJobCards {
-    return _currentUserRole == 'ADMIN' || _currentUserRole == 'SERVICE_MANAGER';
+    return AppPermissions.canManageJobCards(_currentUserRole);
   }
 
   bool get _canRunWorkflow {
-    return _canManageJobCards || _currentUserRole == 'TECHNICIAN';
+    return AppPermissions.canRunJobCardWorkflow(_currentUserRole);
   }
 
   @override
@@ -184,12 +177,28 @@ class _JobCardsScreenState extends ConsumerState<JobCardsScreen> {
             .toList()
           ..sort();
 
+    final techniciansState = ref.watch(technicianProvider);
     final technicians = <int, String>{};
 
+    for (final technician in techniciansState.value ?? []) {
+      if (!technician.isActive) {
+        continue;
+      }
+
+      technicians[technician.id] =
+          '${technician.fullName} '
+          '(${technician.technicianCode})';
+    }
+
+    // Keep historical technicians available for filtering even when
+    // they are no longer active.
     for (final jobCard in jobCards) {
-      technicians[jobCard.technician.id] =
-          '${jobCard.technician.fullName} '
-          '(${jobCard.technician.technicianCode})';
+      technicians.putIfAbsent(
+        jobCard.technician.id,
+        () =>
+            '${jobCard.technician.fullName} '
+            '(${jobCard.technician.technicianCode})',
+      );
     }
 
     final technicianEntries = technicians.entries.toList()
@@ -540,119 +549,138 @@ class _JobCardsTable extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       clipBehavior: Clip.antiAlias,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: DataTable(
-          horizontalMargin: 22,
-          columnSpacing: 30,
-          columns: const [
-            DataColumn(label: Text('Job Card')),
-            DataColumn(label: Text('Request')),
-            DataColumn(label: Text('Technician')),
-            DataColumn(label: Text('Complaint')),
-            DataColumn(label: Text('Labour')),
-            DataColumn(label: Text('Status')),
-            DataColumn(label: Text('Assigned')),
-            DataColumn(label: Text('Actions')),
-          ],
-          rows: jobCards.map((jobCard) {
-            return DataRow(
-              cells: [
-                DataCell(
-                  Text(
-                    jobCard.jobCode,
-                    style: const TextStyle(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-                DataCell(
-                  Text(
-                    jobCard.serviceRequest.requestCode,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                ),
-                DataCell(
-                  SizedBox(
-                    width: 180,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minWidth: constraints.maxWidth),
+              child: DataTable(
+                horizontalMargin: 22,
+                columnSpacing: 30,
+                columns: const [
+                  DataColumn(label: Text('Job Card')),
+                  DataColumn(label: Text('Request')),
+                  DataColumn(label: Text('Technician')),
+                  DataColumn(label: Text('Complaint')),
+                  DataColumn(label: Text('Labour')),
+                  DataColumn(label: Text('Status')),
+                  DataColumn(label: Text('Assigned')),
+                  DataColumn(label: Text('Actions')),
+                ],
+                rows: jobCards.map((jobCard) {
+                  return DataRow(
+                    cells: [
+                      DataCell(
                         Text(
-                          jobCard.technician.fullName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                        Text(
-                          jobCard.technician.technicianCode,
+                          jobCard.jobCode,
                           style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textSecondary,
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                ),
-                DataCell(
-                  SizedBox(
-                    width: 190,
-                    child: Text(
-                      _formatStatus(jobCard.serviceRequest.complaintCategory),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ),
-                DataCell(Text('₹${jobCard.labourCharge.toStringAsFixed(2)}')),
-                DataCell(_JobStatusBadge(status: jobCard.status)),
-                DataCell(Text(_formatDate(jobCard.assignedAt))),
-                DataCell(
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (canRunWorkflow)
-                        IconButton(
-                          onPressed: jobCard.isClosed
-                              ? null
-                              : () {
-                                  onWorkflow(jobCard);
-                                },
-                          tooltip: jobCard.isClosed
-                              ? 'Workflow completed'
-                              : 'Manage workflow',
-                          color: AppColors.primary,
-                          icon: const Icon(Icons.account_tree_outlined),
+                      ),
+                      DataCell(
+                        Text(
+                          jobCard.serviceRequest.requestCode,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
-                      if (canManage)
-                        IconButton(
-                          onPressed: jobCard.isClosed
-                              ? null
-                              : () {
-                                  onEdit(jobCard);
-                                },
-                          tooltip: jobCard.isClosed
-                              ? 'Closed job card'
-                              : 'Edit job card',
-                          icon: const Icon(Icons.edit_outlined),
+                      ),
+                      DataCell(
+                        SizedBox(
+                          width: 180,
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                jobCard.technician.fullName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              Text(
+                                jobCard.technician.technicianCode,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      IconButton(
-                        onPressed: () {
-                          onView(jobCard);
-                        },
-                        tooltip: 'View job card',
-                        icon: const Icon(Icons.visibility_outlined),
+                      ),
+                      DataCell(
+                        SizedBox(
+                          width: 190,
+                          child: Text(
+                            _formatStatus(
+                              jobCard.serviceRequest.complaintCategory,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
+                      DataCell(
+                        Text('₹${jobCard.labourCharge.toStringAsFixed(2)}'),
+                      ),
+                      DataCell(_JobStatusBadge(status: jobCard.status)),
+                      DataCell(Text(_formatDate(jobCard.assignedAt))),
+                      DataCell(
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (canRunWorkflow)
+                              IconButton(
+                                onPressed:
+                                    jobCard.isCancelled ||
+                                        (jobCard.isDelivered && !canManage)
+                                    ? null
+                                    : () {
+                                        onWorkflow(jobCard);
+                                      },
+                                tooltip: jobCard.isCancelled
+                                    ? 'Workflow cancelled'
+                                    : jobCard.isDelivered && !canManage
+                                    ? 'Only Admin or Service Manager can reverse delivery'
+                                    : jobCard.isDelivered
+                                    ? 'Reopen delivery workflow'
+                                    : 'Manage workflow',
+                                color: AppColors.primary,
+                                icon: const Icon(Icons.account_tree_outlined),
+                              ),
+                            if (canManage)
+                              IconButton(
+                                onPressed: jobCard.isClosed
+                                    ? null
+                                    : () {
+                                        onEdit(jobCard);
+                                      },
+                                tooltip: jobCard.isClosed
+                                    ? 'Closed job card'
+                                    : 'Edit job card',
+                                icon: const Icon(Icons.edit_outlined),
+                              ),
+                            IconButton(
+                              onPressed: () {
+                                onView(jobCard);
+                              },
+                              tooltip: 'View job card',
+                              icon: const Icon(Icons.visibility_outlined),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
-                  ),
-                ),
-              ],
-            );
-          }).toList(),
-        ),
+                  );
+                }).toList(),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -777,7 +805,9 @@ class _JobCardsCardList extends StatelessWidget {
                       children: [
                         if (canRunWorkflow) ...[
                           TextButton.icon(
-                            onPressed: jobCard.isClosed
+                            onPressed:
+                                jobCard.isCancelled ||
+                                    (jobCard.isDelivered && !canManage)
                                 ? null
                                 : () {
                                     onWorkflow(jobCard);
@@ -988,19 +1018,46 @@ class _JobCardDetailsDialog extends StatelessWidget {
                   ),
                 ],
               ),
-              if (jobCard.deliveredTo != null ||
+              if (jobCard.deliveredAt != null ||
+                  jobCard.deliveredTo != null ||
+                  jobCard.recipientType != null ||
+                  jobCard.receiverName != null ||
+                  jobCard.relationToCustomer != null ||
                   jobCard.deliveryRemarks != null) ...[
                 const SizedBox(height: 22),
                 _JobDetailsSection(
                   title: 'Delivery Information',
                   children: [
                     _JobDetailsRow(
-                      label: 'Delivered to',
-                      value: jobCard.deliveredTo ?? 'Not specified',
+                      label: 'Recipient type',
+                      value: jobCard.recipientType == null
+                          ? 'Not recorded'
+                          : jobCard.recipientType!.toUpperCase() == 'CUSTOMER'
+                          ? 'Customer'
+                          : 'Other Person',
                     ),
                     _JobDetailsRow(
-                      label: 'Remarks',
+                      label: 'Receiver name',
+                      value:
+                          jobCard.receiverName ??
+                          jobCard.deliveredTo ??
+                          'Not specified',
+                    ),
+                    _JobDetailsRow(
+                      label: 'Relation',
+                      value:
+                          jobCard.relationToCustomer ??
+                          (jobCard.recipientType?.toUpperCase() == 'CUSTOMER'
+                              ? 'Customer / Self'
+                              : 'Not recorded'),
+                    ),
+                    _JobDetailsRow(
+                      label: 'Delivery remarks',
                       value: jobCard.deliveryRemarks ?? 'No remarks',
+                    ),
+                    _JobDetailsRow(
+                      label: 'Delivered at',
+                      value: _formatNullableDateTime(jobCard.deliveredAt),
                     ),
                   ],
                 ),

@@ -7,9 +7,11 @@ from app.schemas.delivery import (
     DeliveryCreate,
     DeliveryResponse,
 )
+from app.schemas.job_card import JobCardResponse
 from app.services.delivery_service import (
     deliver_product,
     get_delivery_details,
+    reopen_delivered_product,
 )
 
 
@@ -48,6 +50,23 @@ def deliver_job_card_product(
         db,
         job_card_id,
         delivery_data,
+    )
+
+
+@router.post(
+    "/job-card/{job_card_id}/reopen",
+    response_model=JobCardResponse,
+    dependencies=[
+        Depends(delivery_manage_access),
+    ],
+)
+def reopen_delivered_job_card(
+    job_card_id: int,
+    db: Session = Depends(get_db),
+):
+    return reopen_delivered_product(
+        db,
+        job_card_id,
     )
 
 

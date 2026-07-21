@@ -17,10 +17,26 @@ class DashboardNotifier extends AsyncNotifier<DashboardOverview> {
     return _dashboardService.getOverview();
   }
 
-  Future<void> refreshDashboard() async {
-    state = const AsyncLoading();
+  Future<void> refreshDashboard({bool showLoading = true}) async {
+    final previousState = state;
 
-    state = await AsyncValue.guard(_dashboardService.getOverview);
+    if (showLoading) {
+      state = const AsyncLoading();
+    }
+
+    final refreshedState = await AsyncValue.guard(
+      _dashboardService.getOverview,
+    );
+
+    if (!showLoading && refreshedState.hasError && previousState.hasValue) {
+      return;
+    }
+
+    state = refreshedState;
+  }
+
+  Future<void> refreshDashboardSilently() {
+    return refreshDashboard(showLoading: false);
   }
 }
 

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../dashboard/data/dashboard_provider.dart';
@@ -20,10 +22,24 @@ class JobCardNotifier extends AsyncNotifier<List<JobCard>> {
     return _service.getJobCards();
   }
 
-  Future<void> refreshJobCards() async {
-    state = const AsyncLoading();
+  Future<void> refreshJobCards({bool showLoading = true}) async {
+    final previousState = state;
 
-    state = await AsyncValue.guard(_service.getJobCards);
+    if (showLoading) {
+      state = const AsyncLoading();
+    }
+
+    final refreshedState = await AsyncValue.guard(_service.getJobCards);
+
+    if (!showLoading && refreshedState.hasError && previousState.hasValue) {
+      return;
+    }
+
+    state = refreshedState;
+  }
+
+  Future<void> refreshJobCardsSilently() {
+    return refreshJobCards(showLoading: false);
   }
 
   Future<JobCard> assignTechnician(
@@ -83,10 +99,25 @@ class JobCardNotifier extends AsyncNotifier<List<JobCard>> {
     return deliveredJobCard;
   }
 
+  Future<JobCard> reopenDeliveredJobCard(int jobCardId) async {
+    final reopenedJobCard = await _service.reopenDeliveredJobCard(jobCardId);
+
+    _replaceJobCard(reopenedJobCard);
+
+    _refreshRelatedProviders();
+
+    return reopenedJobCard;
+  }
+
   void _refreshRelatedProviders() {
-    ref.invalidate(serviceRequestProvider);
-    ref.invalidate(dashboardProvider);
-    ref.invalidate(technicianProvider);
+    unawaited(
+      ref.read(serviceRequestProvider.notifier).refreshRequestsSilently(),
+    );
+
+    unawaited(ref.read(dashboardProvider.notifier).refreshDashboardSilently());
+    unawaited(
+      ref.read(technicianProvider.notifier).refreshTechniciansSilently(),
+    );
   }
 
   void _replaceJobCard(JobCard updatedJobCard) {

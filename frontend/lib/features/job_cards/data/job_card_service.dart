@@ -83,13 +83,22 @@ class JobCardService {
     int jobCardId,
     JobCardDeliveryInput input,
   ) async {
+    final receiverName = input.receiverName?.trim();
+    final relationToCustomer = input.relationToCustomer?.trim();
     final deliveryRemarks = input.deliveryRemarks?.trim();
 
     try {
       await ApiClient.dio.post(
         '/api/v1/deliveries/job-card/$jobCardId',
         data: {
-          'delivered_to': input.deliveredTo.trim(),
+          'recipient_type': input.recipientType.trim().toUpperCase(),
+          'receiver_name': receiverName == null || receiverName.isEmpty
+              ? null
+              : receiverName,
+          'relation_to_customer':
+              relationToCustomer == null || relationToCustomer.isEmpty
+              ? null
+              : relationToCustomer,
           'remarks': deliveryRemarks == null || deliveryRemarks.isEmpty
               ? null
               : deliveryRemarks,
@@ -97,6 +106,19 @@ class JobCardService {
       );
 
       return getJobCard(jobCardId);
+    } on DioException catch (error) {
+      throw ApiException.fromDio(error);
+    }
+  }
+
+  Future<JobCard> reopenDeliveredJobCard(int jobCardId) async {
+    try {
+      final response = await ApiClient.dio.post(
+        '/api/v1/deliveries/'
+        'job-card/$jobCardId/reopen',
+      );
+
+      return JobCard.fromJson(_asResponseMap(response.data));
     } on DioException catch (error) {
       throw ApiException.fromDio(error);
     }

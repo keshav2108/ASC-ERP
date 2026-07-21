@@ -92,6 +92,21 @@ class JobCard(Base):
         nullable=True,
     )
 
+    recipient_type = Column(
+        String(20),
+        nullable=True,
+    )
+
+    receiver_name = Column(
+        String(100),
+        nullable=True,
+    )
+
+    relation_to_customer = Column(
+        String(100),
+        nullable=True,
+    )
+
     delivery_remarks = Column(
         String(500),
         nullable=True,

@@ -419,90 +419,99 @@ class _CustomersTable extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       clipBehavior: Clip.antiAlias,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: DataTable(
-          columnSpacing: 32,
-          horizontalMargin: 22,
-          columns: const [
-            DataColumn(label: Text('Code')),
-            DataColumn(label: Text('Customer')),
-            DataColumn(label: Text('Mobile')),
-            DataColumn(label: Text('City')),
-            DataColumn(label: Text('Created')),
-            DataColumn(label: Text('Status')),
-            DataColumn(label: Text('Actions')),
-          ],
-          rows: customers.map((customer) {
-            return DataRow(
-              cells: [
-                DataCell(
-                  Text(
-                    customer.customerCode,
-                    style: const TextStyle(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                DataCell(
-                  SizedBox(
-                    width: 190,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minWidth: constraints.maxWidth),
+              child: DataTable(
+                columnSpacing: 32,
+                horizontalMargin: 22,
+                columns: const [
+                  DataColumn(label: Text('Code')),
+                  DataColumn(label: Text('Customer')),
+                  DataColumn(label: Text('Mobile')),
+                  DataColumn(label: Text('City')),
+                  DataColumn(label: Text('Created')),
+                  DataColumn(label: Text('Status')),
+                  DataColumn(label: Text('Actions')),
+                ],
+                rows: customers.map((customer) {
+                  return DataRow(
+                    cells: [
+                      DataCell(
                         Text(
-                          customer.fullName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                        if (customer.email != null)
-                          Text(
-                            customer.email!,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: AppColors.textSecondary,
-                              fontSize: 12,
-                            ),
+                          customer.customerCode,
+                          style: const TextStyle(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w700,
                           ),
-                      ],
-                    ),
-                  ),
-                ),
-                DataCell(Text(customer.mobile)),
-                DataCell(Text(customer.city ?? '—')),
-                DataCell(Text(_formatDate(customer.createdAt))),
-                DataCell(_StatusBadge(status: customer.status)),
-                DataCell(
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        onPressed: () => onView(customer),
-                        tooltip: 'View customer',
-                        icon: const Icon(Icons.visibility_outlined),
+                        ),
                       ),
-                      IconButton(
-                        onPressed: () => onEdit(customer),
-                        tooltip: 'Edit customer',
-                        icon: const Icon(Icons.edit_outlined),
+                      DataCell(
+                        SizedBox(
+                          width: 190,
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                customer.fullName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              if (customer.email != null)
+                                Text(
+                                  customer.email!,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: AppColors.textSecondary,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
                       ),
-                      IconButton(
-                        onPressed: () => onDeactivate(customer),
-                        tooltip: 'Deactivate customer',
-                        color: AppColors.danger,
-                        icon: const Icon(Icons.person_off_outlined),
+                      DataCell(Text(customer.mobile)),
+                      DataCell(Text(customer.city ?? '—')),
+                      DataCell(Text(_formatDate(customer.createdAt))),
+                      DataCell(_StatusBadge(status: customer.status)),
+                      DataCell(
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              onPressed: () => onView(customer),
+                              tooltip: 'View customer',
+                              icon: const Icon(Icons.visibility_outlined),
+                            ),
+                            IconButton(
+                              onPressed: () => onEdit(customer),
+                              tooltip: 'Edit customer',
+                              icon: const Icon(Icons.edit_outlined),
+                            ),
+                            IconButton(
+                              onPressed: () => onDeactivate(customer),
+                              tooltip: 'Deactivate customer',
+                              color: AppColors.danger,
+                              icon: const Icon(Icons.person_off_outlined),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
-                  ),
-                ),
-              ],
-            );
-          }).toList(),
-        ),
+                  );
+                }).toList(),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
