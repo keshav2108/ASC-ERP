@@ -28,7 +28,10 @@ from app.services.job_card_service import (
     get_technician_job_cards,
     update_job_card,
 )
-from app.services.inventory_service import issue_stock_to_job_card
+from app.services.inventory_service import (
+    get_job_card_transactions,
+    issue_stock_to_job_card,
+)
 from app.services.job_card_workflow_service import (
     change_job_card_status,
 )
@@ -397,6 +400,34 @@ def complete_job(
     )
 
 
+@router.get(
+    "/{job_card_id}/spare-parts",
+    response_model=list[StockTransactionResponse],
+)
+def list_job_card_spare_parts(
+    job_card_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        job_card_view_access
+    ),
+):
+    job_card = get_job_card_by_id(
+        db,
+        job_card_id,
+    )
+
+    validate_job_card_access(
+        db,
+        current_user,
+        job_card,
+    )
+
+    return get_job_card_transactions(
+        db,
+        job_card_id,
+    )
+
+
 @router.post(
     "/{job_card_id}/spare-parts",
     response_model=StockTransactionResponse,
@@ -442,10 +473,33 @@ def add_spare_part_to_job_card(
             ),
         )
 
-    return issue_stock_to_job_card(
-        db,
-        issue_data,
-    )
+    try:
+        transaction = issue_stock_to_job_card(
+            db,
+            issue_data,
+            commit=False,
+        )
+
+        # The inventory service obtained the row lock and
+        # refreshed this Job Card from the database.
+        db.refresh(job_card)
+
+        if job_card.status == "DIAGNOSIS":
+            change_job_card_status(
+                db,
+                job_card_id,
+                "REPAIR_IN_PROGRESS",
+                commit=False,
+            )
+
+        db.commit()
+        db.refresh(transaction)
+
+    except Exception:
+        db.rollback()
+        raise
+
+    return transaction
 
 
 @router.post(
