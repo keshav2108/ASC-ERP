@@ -6,6 +6,8 @@ from fastapi import (
 )
 from sqlalchemy.orm import Session
 
+from app.auth.dependencies import get_current_user
+
 from app.auth.permissions import (
     normalize_role,
     require_roles,
@@ -215,10 +217,12 @@ def cancel_request(
 def assign_technician(
     service_request_id: int,
     assignment_data: TechnicianAssignmentCreate,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     return assign_technician_and_create_job_card(
         db,
         service_request_id,
         assignment_data,
+        created_by_user_id=current_user.id,
     )

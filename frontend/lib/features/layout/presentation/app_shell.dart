@@ -8,6 +8,9 @@ import '../../customers/presentation/customers_screen.dart';
 import '../../dashboard/presentation/dashboard_screen.dart';
 import '../../service_requests/presentation/service_requests_screen.dart';
 import '../../job_cards/presentation/job_cards_screen.dart';
+import '../../notifications/data/notification_navigation_provider.dart';
+import '../../notifications/data/notification_provider.dart';
+import '../../notifications/presentation/notification_panel.dart';
 import '../../inventory/presentation/inventory_screen.dart';
 import '../../invoices/presentation/invoices_screen.dart';
 import '../../payments/presentation/payments_screen.dart';
@@ -95,6 +98,59 @@ class _AppShellState extends ConsumerState<AppShell> {
     ];
   }
 
+  Future<void> _openNotifications(List<_MenuItem> menuItems) async {
+    await showNotificationPanel(
+      context: context,
+      onOpenNotification: (notification) async {
+        if (!mounted) {
+          return;
+        }
+
+        final jobCardId = notification.entityId;
+
+        if (!notification.isJobCardNotification || jobCardId == null) {
+          _showShellMessage(
+            'This notification is not linked to a Job Card.',
+            isError: true,
+          );
+          return;
+        }
+
+        final jobCardsIndex = menuItems.indexWhere(
+          (item) => item.label == 'Job Cards',
+        );
+
+        if (jobCardsIndex < 0) {
+          _showShellMessage(
+            'You do not have access to Job Cards.',
+            isError: true,
+          );
+          return;
+        }
+
+        ref.read(pendingNotificationJobCardIdProvider.notifier).state =
+            jobCardId;
+
+        if (selectedIndex != jobCardsIndex) {
+          setState(() {
+            selectedIndex = jobCardsIndex;
+          });
+        }
+      },
+    );
+  }
+
+  void _showShellMessage(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: isError ? AppColors.danger : AppColors.success,
+        ),
+      );
+  }
+
   Future<void> _logout() async {
     await ref.read(authProvider.notifier).logout();
   }
@@ -114,6 +170,7 @@ class _AppShellState extends ConsumerState<AppShell> {
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
+    final unreadCount = ref.watch(unreadNotificationCountProvider);
     final user = authState.user;
 
     final fullName = user?['full_name']?.toString() ?? 'ASC User';
@@ -156,6 +213,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                     username: username,
                     initial: initial,
                     isLoggingOut: authState.isLoading,
+                    unreadCount: unreadCount,
                   ),
                   Expanded(child: _buildSelectedPage(menuItems, activeIndex)),
                 ],
@@ -170,10 +228,11 @@ class _AppShellState extends ConsumerState<AppShell> {
       appBar: AppBar(
         title: Text(menuItems[activeIndex].label),
         actions: [
-          IconButton(
-            tooltip: 'Notifications',
-            onPressed: () {},
-            icon: const Icon(Icons.notifications_none_rounded),
+          _NotificationBellButton(
+            unreadCount: unreadCount,
+            onPressed: () {
+              _openNotifications(menuItems);
+            },
           ),
           IconButton(
             tooltip: 'Logout',
@@ -352,6 +411,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     required String username,
     required String initial,
     required bool isLoggingOut,
+    required int unreadCount,
   }) {
     return Container(
       height: 74,
@@ -377,10 +437,11 @@ class _AppShellState extends ConsumerState<AppShell> {
             ),
           ),
           const SizedBox(width: 16),
-          IconButton(
-            tooltip: 'Notifications',
-            onPressed: () {},
-            icon: const Icon(Icons.notifications_none_rounded),
+          _NotificationBellButton(
+            unreadCount: unreadCount,
+            onPressed: () {
+              _openNotifications(menuItems);
+            },
           ),
           const SizedBox(width: 4),
           IconButton(
@@ -573,6 +634,63 @@ class _SidebarMenuButtonState extends State<_SidebarMenuButton> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _NotificationBellButton extends StatelessWidget {
+  const _NotificationBellButton({
+    required this.unreadCount,
+    required this.onPressed,
+  });
+
+  final int unreadCount;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasUnread = unreadCount > 0;
+    final badgeText = unreadCount > 99 ? '99+' : unreadCount.toString();
+
+    return IconButton(
+      tooltip: hasUnread
+          ? 'Notifications ($unreadCount unread)'
+          : 'Notifications',
+      onPressed: onPressed,
+      icon: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Icon(
+            hasUnread
+                ? Icons.notifications_rounded
+                : Icons.notifications_none_rounded,
+          ),
+          if (hasUnread)
+            Positioned(
+              top: -9,
+              right: -11,
+              child: Container(
+                constraints: const BoxConstraints(minWidth: 19, minHeight: 19),
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: AppColors.danger,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppColors.surface, width: 2),
+                ),
+                child: Text(
+                  badgeText,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    height: 1,
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

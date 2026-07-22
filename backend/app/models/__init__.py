@@ -12,3 +12,4 @@ from app.models.invoice import Invoice
 from app.models.invoice_item import InvoiceItem
 from app.models.payment import Payment
 
+from app.models.notification import Notification

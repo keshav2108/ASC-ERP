@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/auth/app_permissions.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../auth/data/auth_provider.dart';
+import '../../notifications/data/notification_navigation_provider.dart';
 import '../../technicians/data/technician_provider.dart';
 import '../data/job_card_model.dart';
 import '../data/job_card_provider.dart';
@@ -24,6 +25,7 @@ class _JobCardsScreenState extends ConsumerState<JobCardsScreen> {
   String _searchQuery = '';
   String _selectedStatus = 'ALL';
   int _selectedTechnicianId = 0;
+  bool _isOpeningNotificationJobCard = false;
 
   String get _currentUserRole {
     return AppRoles.fromUser(ref.read(authProvider).user);
@@ -60,6 +62,57 @@ class _JobCardsScreenState extends ConsumerState<JobCardsScreen> {
         return _JobCardDetailsDialog(jobCard: jobCard);
       },
     );
+  }
+
+  Future<void> _openNotificationJobCard(int jobCardId) async {
+    if (_isOpeningNotificationJobCard) {
+      return;
+    }
+
+    _isOpeningNotificationJobCard = true;
+
+    ref.read(pendingNotificationJobCardIdProvider.notifier).state = null;
+
+    try {
+      final cachedJobCards =
+          ref.read(jobCardProvider).value ?? const <JobCard>[];
+
+      JobCard? linkedJobCard;
+
+      for (final jobCard in cachedJobCards) {
+        if (jobCard.id == jobCardId) {
+          linkedJobCard = jobCard;
+          break;
+        }
+      }
+
+      linkedJobCard ??= await ref
+          .read(jobCardServiceProvider)
+          .getJobCard(jobCardId);
+
+      if (!mounted) {
+        return;
+      }
+
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) {
+          return _JobCardDetailsDialog(jobCard: linkedJobCard!);
+        },
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      _showMessage(
+        'Unable to open linked Job Card: '
+        '${_cleanError(error)}',
+        isError: true,
+      );
+    } finally {
+      _isOpeningNotificationJobCard = false;
+    }
   }
 
   Future<void> _editJobCard(JobCard jobCard) async {
@@ -128,6 +181,24 @@ class _JobCardsScreenState extends ConsumerState<JobCardsScreen> {
   @override
   Widget build(BuildContext context) {
     final jobCardsState = ref.watch(jobCardProvider);
+    ref.listen<int?>(pendingNotificationJobCardIdProvider, (
+      previousJobCardId,
+      nextJobCardId,
+    ) {
+      if (nextJobCardId == null ||
+          nextJobCardId == previousJobCardId ||
+          _isOpeningNotificationJobCard) {
+        return;
+      }
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+
+        _openNotificationJobCard(nextJobCardId);
+      });
+    });
 
     return LayoutBuilder(
       builder: (context, constraints) {

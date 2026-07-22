@@ -8,7 +8,9 @@ from app.schemas.job_card import (
     JobCardUpdate,
     TechnicianAssignmentCreate,
 )
+from app.schemas.notification import NotificationCreate
 from app.services.master_validation_service import validate_master_option
+from app.services.notification_service import create_notification
 
 
 def get_job_card_by_id(
@@ -34,6 +36,7 @@ def assign_technician_and_create_job_card(
     db: Session,
     service_request_id: int,
     assignment_data: TechnicianAssignmentCreate,
+    created_by_user_id: int | None = None,
 ):
     service_request = (
         db.query(ServiceRequest)
@@ -133,6 +136,34 @@ def assign_technician_and_create_job_card(
     db.add(job_card)
 
     try:
+        db.flush()
+
+        if (
+            technician.user_id is not None
+            and created_by_user_id is not None
+        ):
+            create_notification(
+                db,
+                NotificationCreate(
+                    recipient_user_id=(
+                        technician.user_id
+                    ),
+                    created_by_user_id=(
+                        created_by_user_id
+                    ),
+                    notification_type=(
+                        "NEW_JOB_ASSIGNED"
+                    ),
+                    title="New Job Assigned",
+                    message=(
+                        f"{job_card.job_code} has "
+                        "been assigned to you."
+                    ),
+                    entity_type="JOB_CARD",
+                    entity_id=job_card.id,
+                ),
+            )
+
         db.commit()
         db.refresh(job_card)
 

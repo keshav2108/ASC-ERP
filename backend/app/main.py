@@ -17,6 +17,7 @@ from app.routes.delivery import router as delivery_router
 from app.routes.inventory import router as inventory_router
 from app.routes.invoice import router as invoice_router
 from app.routes.job_card import router as job_card_router
+from app.routes.notification import router as notification_router
 from app.routes.master_option import (
     router as master_option_router,
 )
@@ -59,6 +60,7 @@ app.include_router(service_request_router)
 app.include_router(master_option_router)
 app.include_router(technician_router)
 app.include_router(job_card_router)
+app.include_router(notification_router)
 app.include_router(workflow_transition_router)
 app.include_router(spare_part_router)
 app.include_router(inventory_router)
