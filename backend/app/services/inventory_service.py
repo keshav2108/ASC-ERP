@@ -15,15 +15,25 @@ from app.schemas.stock_transaction import (
 def get_active_spare_part(
     db: Session,
     spare_part_id: int,
+    *,
+    lock_for_update: bool = False,
 ):
-    spare_part = (
+    query = (
         db.query(SparePart)
         .filter(
             SparePart.id == spare_part_id,
             SparePart.is_active.is_(True),
         )
-        .first()
     )
+
+    if lock_for_update:
+        query = (
+            query
+            .populate_existing()
+            .with_for_update()
+        )
+
+    spare_part = query.first()
 
     if not spare_part:
         raise HTTPException(
@@ -37,12 +47,22 @@ def get_active_spare_part(
 def get_job_card(
     db: Session,
     job_card_id: int,
+    *,
+    lock_for_update: bool = False,
 ):
-    job_card = (
+    query = (
         db.query(JobCard)
         .filter(JobCard.id == job_card_id)
-        .first()
     )
+
+    if lock_for_update:
+        query = (
+            query
+            .populate_existing()
+            .with_for_update()
+        )
+
+    job_card = query.first()
 
     if not job_card:
         raise HTTPException(
@@ -94,27 +114,30 @@ def stock_in(
 def issue_stock_to_job_card(
     db: Session,
     issue_data: StockIssueCreate,
+    *,
+    commit: bool = True,
 ):
     spare_part = get_active_spare_part(
         db,
         issue_data.spare_part_id,
+        lock_for_update=True,
     )
 
     job_card = get_job_card(
         db,
         issue_data.job_card_id,
+        lock_for_update=True,
     )
 
-    if job_card.status in {
-        "COMPLETED",
-        "READY_FOR_DELIVERY",
-        "CANCELLED",
+    if job_card.status not in {
+        "DIAGNOSIS",
+        "REPAIR_IN_PROGRESS",
     }:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=(
-                "Parts cannot be issued to "
-                "this job card"
+                "Spare parts can only be issued during "
+                "diagnosis or repair"
             ),
         )
 
@@ -146,8 +169,11 @@ def issue_stock_to_job_card(
     db.add(transaction)
 
     try:
-        db.commit()
-        db.refresh(transaction)
+        if commit:
+            db.commit()
+            db.refresh(transaction)
+        else:
+            db.flush()
 
     except Exception:
         db.rollback()

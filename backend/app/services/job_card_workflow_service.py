@@ -35,6 +35,8 @@ def change_job_card_status(
     db: Session,
     job_card_id: int,
     new_status: str,
+    *,
+    commit: bool = True,
 ):
     job_card = get_job_card_for_workflow(
         db,
@@ -117,8 +119,11 @@ def change_job_card_status(
             )
 
     try:
-        db.commit()
-        db.refresh(job_card)
+        if commit:
+            db.commit()
+            db.refresh(job_card)
+        else:
+            db.flush()
 
     except Exception:
         db.rollback()
