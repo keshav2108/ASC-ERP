@@ -23,6 +23,7 @@ class _JobCardWorkflowDialogState extends ConsumerState<JobCardWorkflowDialog> {
 
   bool _isUpdating = false;
   String? _errorMessage;
+  bool _partsWereAddedThisSession = false;
 
   static const Set<String> _technicianAllowedTargets = <String>{
     'DIAGNOSIS',
@@ -312,10 +313,58 @@ class _JobCardWorkflowDialogState extends ConsumerState<JobCardWorkflowDialog> {
       return;
     }
 
-    _showMessage(
-      'Spare-part usage updated for '
-      '${_jobCard.jobCode}.',
-    );
+    setState(() {
+      _isUpdating = true;
+      _errorMessage = null;
+      _partsWereAddedThisSession = false;
+    });
+
+    try {
+      final refreshedJobCard = await ref
+          .read(jobCardProvider.notifier)
+          .refreshJobCard(_jobCard.id);
+
+      if (!mounted) {
+        return;
+      }
+
+      final refreshedStatus = _normalizeStatus(refreshedJobCard.status);
+
+      setState(() {
+        _jobCard = refreshedJobCard;
+        _partsWereAddedThisSession = refreshedStatus == 'REPAIR_IN_PROGRESS';
+
+        if (!_partsWereAddedThisSession) {
+          _errorMessage =
+              'The spare part was added, but the Job Card '
+              'is currently ${_formatStatus(refreshedJobCard.status)}.';
+        }
+      });
+
+      if (_partsWereAddedThisSession) {
+        _showMessage(
+          'Spare part added. ${refreshedJobCard.jobCode} '
+          'is now in Repair In Progress.',
+        );
+      }
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _errorMessage =
+            'The spare part was added, but the latest '
+            'Job Card status could not be loaded. '
+            '${_cleanError(error)}';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUpdating = false;
+        });
+      }
+    }
   }
 
   void _showMessage(String message) {
@@ -349,6 +398,12 @@ class _JobCardWorkflowDialogState extends ConsumerState<JobCardWorkflowDialog> {
               if (_canAddSparePart) ...[
                 const SizedBox(height: 18),
                 _buildSparePartAction(),
+              ],
+              if (_partsWereAddedThisSession &&
+                  _normalizeStatus(_jobCard.status) ==
+                      'REPAIR_IN_PROGRESS') ...[
+                const SizedBox(height: 18),
+                _buildContinueRepairingBanner(),
               ],
               if (_errorMessage != null) ...[
                 const SizedBox(height: 20),
@@ -524,6 +579,72 @@ class _JobCardWorkflowDialogState extends ConsumerState<JobCardWorkflowDialog> {
               height: 22,
               child: CircularProgressIndicator(strokeWidth: 2),
             ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildContinueRepairingBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.success.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.success.withValues(alpha: 0.24)),
+      ),
+      child: Wrap(
+        spacing: 16,
+        runSpacing: 14,
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          const SizedBox(
+            width: 430,
+            child: Row(
+              children: [
+                Icon(
+                  Icons.check_circle_rounded,
+                  color: AppColors.success,
+                  size: 32,
+                ),
+                SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Parts Added Successfully',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'The Job Card is now in Repair In '
+                        'Progress. Continue the repair and '
+                        'move it to Testing when ready.',
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          FilledButton.icon(
+            onPressed: _isUpdating
+                ? null
+                : () {
+                    Navigator.of(context).pop(_jobCard);
+                  },
+            icon: const Icon(Icons.build_circle_rounded),
+            label: const Text('Continue Repairing'),
+          ),
         ],
       ),
     );

@@ -185,122 +185,162 @@ def issue_stock_to_job_card(
 def return_stock_from_job_card(
     db: Session,
     return_data: StockReturnCreate,
+    *,
+    commit: bool = True,
 ):
-    spare_part = get_active_spare_part(
-        db,
-        return_data.spare_part_id,
-    )
+    correction_reason = (
+        return_data.remarks or ""
+    ).strip()
 
-    job_card = get_job_card(
-        db,
-        return_data.job_card_id,
-    )
-
-    issue_transactions = (
-        db.query(StockTransaction)
-        .filter(
-            StockTransaction.spare_part_id
-            == return_data.spare_part_id,
-            StockTransaction.job_card_id
-            == return_data.job_card_id,
-            StockTransaction.transaction_type
-            == "ISSUE",
-        )
-        .all()
-    )
-
-    return_transactions = (
-        db.query(StockTransaction)
-        .filter(
-            StockTransaction.spare_part_id
-            == return_data.spare_part_id,
-            StockTransaction.job_card_id
-            == return_data.job_card_id,
-            StockTransaction.transaction_type
-            == "RETURN",
-        )
-        .all()
-    )
-
-    total_issued = sum(
-        transaction.quantity
-        for transaction in issue_transactions
-    )
-
-    total_returned = sum(
-        transaction.quantity
-        for transaction in return_transactions
-    )
-
-    returnable_quantity = (
-        total_issued - total_returned
-    )
-
-    if returnable_quantity <= 0:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No issued stock is available to return",
-        )
-
-    if return_data.quantity > returnable_quantity:
+    if len(correction_reason) < 3:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=(
-                f"Maximum returnable quantity is "
-                f"{returnable_quantity}"
+                "A correction reason of at least "
+                "3 characters is required"
             ),
         )
 
-    latest_issue = (
-        db.query(StockTransaction)
-        .filter(
-            StockTransaction.spare_part_id
-            == return_data.spare_part_id,
-            StockTransaction.job_card_id
-            == return_data.job_card_id,
-            StockTransaction.transaction_type
-            == "ISSUE",
-        )
-        .order_by(
-            StockTransaction.id.desc()
-        )
-        .first()
-    )
-
-    unit_price = (
-        latest_issue.unit_price
-        if latest_issue
-        else spare_part.selling_price
-    )
-
-    line_total = unit_price * return_data.quantity
-
-    spare_part.current_stock += return_data.quantity
-
-    transaction = StockTransaction(
-        spare_part_id=return_data.spare_part_id,
-        job_card_id=return_data.job_card_id,
-        transaction_type="RETURN",
-        quantity=return_data.quantity,
-        unit_price=unit_price,
-        line_total=line_total,
-        reference=job_card.job_code,
-        remarks=return_data.remarks,
-    )
-
-    db.add(transaction)
-
     try:
-        db.commit()
-        db.refresh(transaction)
+        spare_part = get_active_spare_part(
+            db,
+            return_data.spare_part_id,
+            lock_for_update=True,
+        )
+
+        job_card = get_job_card(
+            db,
+            return_data.job_card_id,
+            lock_for_update=True,
+        )
+
+        allowed_statuses = {
+            "DIAGNOSIS",
+            "REPAIR_IN_PROGRESS",
+        }
+
+        if job_card.status not in allowed_statuses:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "Spare parts can only be removed "
+                    "during Diagnosis or "
+                    "Repair In Progress"
+                ),
+            )
+
+        transactions = (
+            db.query(StockTransaction)
+            .filter(
+                StockTransaction.spare_part_id
+                == return_data.spare_part_id,
+                StockTransaction.job_card_id
+                == return_data.job_card_id,
+                StockTransaction.transaction_type.in_(
+                    ["ISSUE", "RETURN"]
+                ),
+            )
+            .order_by(
+                StockTransaction.id.asc()
+            )
+            .all()
+        )
+
+        issue_transactions = [
+            transaction
+            for transaction in transactions
+            if transaction.transaction_type
+            == "ISSUE"
+        ]
+
+        return_transactions = [
+            transaction
+            for transaction in transactions
+            if transaction.transaction_type
+            == "RETURN"
+        ]
+
+        total_issued = sum(
+            transaction.quantity
+            for transaction in issue_transactions
+        )
+
+        total_returned = sum(
+            transaction.quantity
+            for transaction in return_transactions
+        )
+
+        returnable_quantity = (
+            total_issued - total_returned
+        )
+
+        if returnable_quantity <= 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "No issued quantity is available "
+                    "to remove for this spare part"
+                ),
+            )
+
+        if return_data.quantity > returnable_quantity:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "Return quantity cannot exceed "
+                    f"the available issued quantity "
+                    f"of {returnable_quantity}"
+                ),
+            )
+
+        latest_issue = next(
+            (
+                transaction
+                for transaction in reversed(
+                    issue_transactions
+                )
+            ),
+            None,
+        )
+
+        unit_price = (
+            latest_issue.unit_price
+            if latest_issue is not None
+            else spare_part.selling_price
+        )
+
+        line_total = (
+            unit_price * return_data.quantity
+        )
+
+        spare_part.current_stock += (
+            return_data.quantity
+        )
+
+        transaction = StockTransaction(
+            spare_part_id=return_data.spare_part_id,
+            job_card_id=return_data.job_card_id,
+            transaction_type="RETURN",
+            quantity=return_data.quantity,
+            unit_price=unit_price,
+            line_total=line_total,
+            reference=job_card.job_code,
+            remarks=correction_reason,
+        )
+
+        db.add(transaction)
+
+        if commit:
+            db.commit()
+            db.refresh(transaction)
+        else:
+            db.flush()
+
+        return transaction
 
     except Exception:
         db.rollback()
         raise
-
-    return transaction
-
-
 def adjust_stock(
     db: Session,
     adjustment_data: StockAdjustmentCreate,

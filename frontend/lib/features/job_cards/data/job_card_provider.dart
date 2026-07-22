@@ -42,6 +42,15 @@ class JobCardNotifier extends AsyncNotifier<List<JobCard>> {
     return refreshJobCards(showLoading: false);
   }
 
+  Future<JobCard> refreshJobCard(int jobCardId) async {
+    final refreshedJobCard = await _service.getJobCard(jobCardId);
+
+    _replaceJobCard(refreshedJobCard);
+    _refreshRelatedProviders();
+
+    return refreshedJobCard;
+  }
+
   Future<JobCard> assignTechnician(
     int serviceRequestId,
     TechnicianAssignmentInput input,
