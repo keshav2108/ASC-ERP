@@ -134,3 +134,9 @@ class JobCard(Base):
         uselist=False,
         cascade="all, delete-orphan",
     )
+
+    stock_transactions = relationship(
+        "StockTransaction",
+        back_populates="job_card",
+        cascade="all, delete-orphan",
+    )

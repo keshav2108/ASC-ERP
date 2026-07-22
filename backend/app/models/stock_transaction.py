@@ -80,4 +80,5 @@ class StockTransaction(Base):
 
     job_card = relationship(
         "JobCard",
+        back_populates="stock_transactions",
     )

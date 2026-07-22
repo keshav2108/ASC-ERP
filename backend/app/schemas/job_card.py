@@ -115,6 +115,10 @@ class JobCardResponse(BaseModel):
     technician: TechnicianSummary
     service_request: JobServiceRequestSummary
 
+    # Computed spare-part fields (Phase 4)
+    total_parts_cost: Decimal = Field(default=Decimal("0.00"))
+    parts_used_count: int = Field(default=0)
+
     model_config = {
         "from_attributes": True,
     }
