@@ -23,6 +23,7 @@ class _JobCardWorkflowDialogState extends ConsumerState<JobCardWorkflowDialog> {
 
   bool _isUpdating = false;
   String? _errorMessage;
+  bool _partsWereAdded = false;
 
   static const Set<String> _technicianAllowedTargets = <String>{
     'DIAGNOSIS',
@@ -312,10 +313,48 @@ class _JobCardWorkflowDialogState extends ConsumerState<JobCardWorkflowDialog> {
       return;
     }
 
+    setState(() {
+      _partsWereAdded = true;
+    });
+
+    // Phase 4: Refresh Job Card to pick up new status/parts totals
+    await _refreshJobCard();
+
     _showMessage(
       'Spare-part usage updated for '
       '${_jobCard.jobCode}.',
     );
+  }
+
+  Future<void> _refreshJobCard() async {
+    setState(() {
+      _isUpdating = true;
+    });
+
+    try {
+      await ref.read(jobCardProvider.notifier).refreshJobCardsSilently();
+
+      // Find the updated Job Card in the refreshed list
+      final jobCards = ref.read(jobCardProvider).value ?? const <JobCard>[];
+      for (final jc in jobCards) {
+        if (jc.id == _jobCard.id) {
+          if (mounted) {
+            setState(() {
+              _jobCard = jc;
+            });
+          }
+          break;
+        }
+      }
+    } catch (_) {
+      // Silently ignore refresh errors; user can retry manually
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUpdating = false;
+        });
+      }
+    }
   }
 
   void _showMessage(String message) {
@@ -349,6 +388,10 @@ class _JobCardWorkflowDialogState extends ConsumerState<JobCardWorkflowDialog> {
               if (_canAddSparePart) ...[
                 const SizedBox(height: 18),
                 _buildSparePartAction(),
+              ],
+              if (_partsWereAdded) ...[
+                const SizedBox(height: 18),
+                _buildContinueRepairingBanner(),
               ],
               if (_errorMessage != null) ...[
                 const SizedBox(height: 20),
@@ -524,6 +567,54 @@ class _JobCardWorkflowDialogState extends ConsumerState<JobCardWorkflowDialog> {
               height: 22,
               child: CircularProgressIndicator(strokeWidth: 2),
             ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildContinueRepairingBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.success.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.success.withValues(alpha: 0.24)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: AppColors.success.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.check_circle_rounded,
+              color: AppColors.success,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Parts Added — Continue Repairing',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  'Spare parts have been added. The Job Card is now in Repair In Progress. You can continue working or move to Testing when ready.',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );

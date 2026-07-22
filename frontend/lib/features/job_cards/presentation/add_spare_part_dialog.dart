@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../dashboard/data/dashboard_provider.dart';
 import '../../inventory/data/inventory_model.dart';
 import '../../inventory/data/inventory_provider.dart';
+import '../data/job_card_provider.dart';
 
 class AddSparePartDialog extends ConsumerStatefulWidget {
   const AddSparePartDialog({
@@ -90,6 +91,8 @@ class _AddSparePartDialogState extends ConsumerState<AddSparePartDialog> {
             ),
           );
 
+      // Phase 4: Refresh Job Card so workflow dialog sees updated status/parts
+      ref.invalidate(jobCardProvider);
       ref.invalidate(dashboardProvider);
 
       if (!mounted) {
@@ -363,6 +366,9 @@ class _AddSparePartDialogState extends ConsumerState<AddSparePartDialog> {
                 }
 
                 return null;
+              },
+              onFieldSubmitted: (_) {
+                _issueSelectedPart();
               },
             ),
             const SizedBox(height: 14),

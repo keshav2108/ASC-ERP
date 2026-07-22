@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_exception.dart';
+import '../../inventory/data/inventory_model.dart';
 import 'job_card_model.dart';
 
 class JobCardService {
@@ -32,6 +33,31 @@ class JobCardService {
       final response = await ApiClient.dio.get('/api/v1/job-cards/$jobCardId');
 
       return JobCard.fromJson(_asResponseMap(response.data));
+    } on DioException catch (error) {
+      throw ApiException.fromDio(error);
+    }
+  }
+
+  /// Phase 4: Fetch spare parts used on a Job Card directly from the Job Card endpoint.
+  Future<List<StockTransaction>> getJobCardSpareParts(int jobCardId) async {
+    try {
+      final response = await ApiClient.dio.get(
+        '/api/v1/job-cards/$jobCardId/spare-parts',
+      );
+
+      if (response.data is! List) {
+        throw const ApiException(
+          message: 'The server returned an invalid spare-parts list.',
+        );
+      }
+
+      return (response.data as List)
+          .map(
+            (item) => StockTransaction.fromJson(
+              Map<String, dynamic>.from(item as Map),
+            ),
+          )
+          .toList();
     } on DioException catch (error) {
       throw ApiException.fromDio(error);
     }

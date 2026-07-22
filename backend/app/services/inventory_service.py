@@ -10,6 +10,8 @@ from app.schemas.stock_transaction import (
     StockIssueCreate,
     StockReturnCreate,
 )
+from app.utils.timezone import get_current_time
+from datetime import timedelta
 
 
 def get_active_spare_part(
@@ -126,6 +128,40 @@ def issue_stock_to_job_card(
                 f"{spare_part.current_stock}"
             ),
         )
+
+    # Phase 4: Prevent accidental duplicate part additions within 5 seconds
+    recent_issue = (
+        db.query(StockTransaction)
+        .filter(
+            StockTransaction.spare_part_id == issue_data.spare_part_id,
+            StockTransaction.job_card_id == issue_data.job_card_id,
+            StockTransaction.transaction_type == "ISSUE",
+        )
+        .order_by(StockTransaction.id.desc())
+        .first()
+    )
+
+    if recent_issue is not None:
+        # Use naive datetime to match database storage format
+        from datetime import datetime as _datetime
+        now = _datetime.now()
+        created_at = recent_issue.created_at
+
+        # Ensure both are naive for consistent comparison
+        if now.tzinfo is not None:
+            now = now.replace(tzinfo=None)
+        if created_at.tzinfo is not None:
+            created_at = created_at.replace(tzinfo=None)
+
+        time_diff = now - created_at
+        if time_diff < timedelta(seconds=5):
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=(
+                    "This part was just added to this Job Card. "
+                    "Please wait a moment before adding again."
+                ),
+            )
 
     spare_part.current_stock -= issue_data.quantity
 

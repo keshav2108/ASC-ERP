@@ -20,6 +20,8 @@ class JobCard {
     required this.createdAt,
     required this.technician,
     required this.serviceRequest,
+    this.totalPartsCost = 0.0,
+    this.partsUsedCount = 0,
   });
 
   final int id;
@@ -52,6 +54,10 @@ class JobCard {
   final JobCardTechnician technician;
   final JobCardServiceRequest serviceRequest;
 
+  // Phase 4: Computed spare-part fields
+  final double totalPartsCost;
+  final int partsUsedCount;
+
   bool get isDelivered => status.toUpperCase() == 'DELIVERED';
 
   bool get isCancelled => status.toUpperCase() == 'CANCELLED';
@@ -82,6 +88,8 @@ class JobCard {
       serviceRequest: JobCardServiceRequest.fromJson(
         _asMap(json['service_request']),
       ),
+      totalPartsCost: _asDouble(json['total_parts_cost']),
+      partsUsedCount: _asInt(json['parts_used_count']),
     );
   }
 }
